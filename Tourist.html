@@ -72,35 +72,19 @@
             const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
             
             const startPos = { lat: 40.7580, lng: -73.9855 };
-            panorama = new StreetViewPanorama(document.getElementById("street-view"), { 
-                position: startPos, 
-                visible: true,
-                disableDefaultUI: false 
-            });
-
-            map = new Map(document.getElementById("map-2d"), { 
-                center: startPos, 
-                zoom: 17, 
-                streetViewControl: true, 
-                mapId: "4504f8b373a3ad47" 
-            });
+            panorama = new StreetViewPanorama(document.getElementById("street-view"), { position: startPos, visible: true });
+            map = new Map(document.getElementById("map-2d"), { center: startPos, zoom: 17, streetViewControl: true, mapId: "4504f8b373a3ad47" });
             map.setStreetView(panorama);
 
             arrowDiv = document.createElement('div');
             arrowDiv.className = 'guide-arrow';
-            
             guideMarker = new AdvancedMarkerElement({ map: map, position: startPos, content: arrowDiv });
 
-            // --- THE SNAP-BACK ENGINE ---
             db.ref("tour/guide").on("value", (snap) => {
                 const data = snap.val();
                 if (!data) return;
-
-                // Update Red Arrow on 2D Map
-                guideMarker.position = { lat: data.position.lat, lng: data.position.lng };
+                guideMarker.position = data.position;
                 arrowDiv.style.transform = `rotate(${data.pov.heading}deg)`;
-
-                // Force Sync (The Snap-Back)
                 if (isTethered) {
                     panorama.setPosition(data.position);
                     panorama.setPov(data.pov);
@@ -112,17 +96,8 @@
         function toggleTether() {
             isTethered = !isTethered;
             document.getElementById("tetherBtn").innerText = isTethered ? "Untether" : "Tether Me";
-            // Immediate snap back when clicking "Tether Me"
-            if (isTethered) {
-                db.ref("tour/guide").once("value", (s) => {
-                    const d = s.val();
-                    panorama.setPosition(d.position);
-                    panorama.setPov(d.pov);
-                });
-            }
         }
 
-        // Resizer Logic
         const resizer = document.getElementById("resizer");
         const rightSide = document.getElementById("map-2d");
         let isResizing = false;
@@ -130,26 +105,33 @@
         window.addEventListener("mousemove", (e) => { if(isResizing) rightSide.style.width = (window.innerWidth - e.clientX) + "px"; });
         window.addEventListener("mouseup", () => isResizing = false);
 
-        // --- CAMERA FIX ---
+        // --- THE CAMERA FIX ---
         async function joinVideo() {
-            console.log("Starting connection...");
             const vid = document.getElementById('remoteVideo');
+            
+            // 1. Reset everything
+            if (pc) pc.close();
+            db.ref("calls/active/touristCandidates").remove();
+            db.ref("calls/active/answer").remove();
+
             pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
 
             pc.ontrack = e => {
-                console.log("VIDEO TRACK DETECTED");
-                vid.srcObject = e.streams[0];
-                vid.play().catch(err => console.error("Auto-play error:", err));
+                if (vid.srcObject !== e.streams[0]) {
+                    vid.srcObject = e.streams[0];
+                    vid.play();
+                    document.getElementById('joinBtn').innerText = "LIVE";
+                }
             };
 
             pc.onicecandidate = e => {
                 if(e.candidate) db.ref("calls/active/touristCandidates").push(e.candidate.toJSON());
             };
 
+            // Wait for Offer
             db.ref("calls/active/offer").on("value", async s => {
                 const offer = s.val();
                 if (offer && pc.signalingState !== "stable") {
-                    console.log("Offer received, sending answer...");
                     await pc.setRemoteDescription(new RTCSessionDescription(offer));
                     const ans = await pc.createAnswer();
                     await pc.setLocalDescription(ans);
@@ -157,9 +139,10 @@
                 }
             });
 
+            // Add Guide candidates ONLY after offer is set
             db.ref("calls/active/guideCandidates").on("child_added", s => {
                 if(s.val() && pc.remoteDescription) {
-                    pc.addIceCandidate(new RTCIceCandidate(s.val())).catch(e => console.error("ICE error:", e));
+                    pc.addIceCandidate(new RTCIceCandidate(s.val())).catch(() => {});
                 }
             });
         }
