@@ -7,15 +7,12 @@
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; color: white; font-family: sans-serif; }
         
-        /* THE ORIGINAL SEARCH BAR STYLE */
+        /* SEARCH BAR STYLE */
         #pac-input {
             position: absolute; top: 10px; left: 210px; z-index: 5;
             background-color: #fff; font-family: Roboto; font-size: 15px;
-            font-weight: 300; padding: 0 11px 0 13px; text-overflow: ellipsis;
-            width: 300px; height: 40px; border: 1px solid transparent;
-            border-radius: 2px 0 0 2px; box-sizing: border-box;
-            outline: none; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-            color: black;
+            padding: 0 11px; width: 300px; height: 40px; border-radius: 2px;
+            outline: none; box-shadow: 0 2px 6px rgba(0,0,0,0.3); color: black;
         }
 
         #main-layout { display: flex; height: 100vh; width: 100vw; }
@@ -34,7 +31,7 @@
 </head>
 <body>
 
-    <input id="pac-input" type="text" placeholder="Enter a location">
+    <input id="pac-input" type="text" placeholder="Search for a location">
 
     <div id="guide-controls">
         <video id="localVideo" autoplay muted playsinline></video>
@@ -78,9 +75,7 @@
             map = new Map(document.getElementById("map-2d"), { center: { lat: 40.7580, lng: -73.9855 }, zoom: 17 });
             map.setStreetView(panorama);
 
-            // ORIGINAL SEARCH BOX INTEGRATION
-            const input = document.getElementById("pac-input");
-            const autocomplete = new Autocomplete(input);
+            const autocomplete = new Autocomplete(document.getElementById("pac-input"));
             autocomplete.addListener("place_changed", () => {
                 const place = autocomplete.getPlace();
                 if (place.geometry) {
@@ -94,7 +89,7 @@
             panorama.addListener("pov_changed", sync);
         }
 
-        // --- RESIZER ---
+        // Resizer
         const resizer = document.getElementById("resizer");
         const rightSide = document.getElementById("map-2d");
         let isResizing = false;
@@ -108,15 +103,26 @@
         window.addEventListener("mouseup", () => isResizing = false);
 
         async function startBroadcast() {
+            // IMPORTANT: Clear old connection data from Firebase first
+            await db.ref("calls/active").remove();
+
             localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             document.getElementById('localVideo').srcObject = localStream;
+
             pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
             localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
             pc.onicecandidate = e => e.candidate && db.ref("calls/active/guideCandidates").push(e.candidate.toJSON());
+
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
             db.ref("calls/active/offer").set({ type: offer.type, sdp: offer.sdp });
-            db.ref("calls/active/answer").on("value", s => s.val() && pc.setRemoteDescription(new RTCSessionDescription(s.val())));
+
+            db.ref("calls/active/answer").on("value", s => {
+                if (s.val() && pc.signalingState !== "stable") {
+                    pc.setRemoteDescription(new RTCSessionDescription(s.val()));
+                }
+            });
         }
         init();
     </script>
