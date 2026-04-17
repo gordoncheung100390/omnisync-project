@@ -6,17 +6,15 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; color: white; font-family: sans-serif; }
-        
-        /* LAYOUT */
         #main-layout { display: flex; height: 100vh; width: 100vw; }
         #street-view { flex: 1; background: #111; }
         #map-2d { width: 30%; background: #1a1a1a; border-left: 1px solid #333; }
         #resizer { width: 12px; cursor: col-resize; background: #222; z-index: 10; border-left: 1px solid #444; }
         #resizer:hover { background: #FFD700; }
-
-        /* VIDEO */
+        
+        /* VIDEO WINDOW */
         #vid-box { 
-            position: absolute; top: 20px; right: 20px; width: 240px; aspect-ratio: 16/9; 
+            position: absolute; top: 20px; right: 20px; width: 280px; aspect-ratio: 16/9; 
             background: #000; border: 2px solid #FFD700; border-radius: 12px; z-index: 1000; overflow: hidden; 
         }
         video { width: 100%; height: 100%; object-fit: cover; }
@@ -70,31 +68,37 @@
             
             const startPos = { lat: 40.7580, lng: -73.9855 };
 
+            // 1. Setup Street View
             panorama = new StreetViewPanorama(document.getElementById("street-view"), {
                 position: startPos, visible: true, addressControl: false
             });
 
+            // 2. Setup 2D Map (WITH YELLOW MAN ENABLED)
             map = new Map(document.getElementById("map-2d"), {
-                center: startPos, zoom: 17, streetViewControl: true
+                center: startPos, zoom: 17, 
+                streetViewControl: true, // THIS BRINGS THE YELLOW MAN BACK
+                mapTypeControl: false
             });
 
+            // Link them so the Yellow Man moves when you move in Street View
+            map.setStreetView(panorama);
+
+            // 3. Create the Red Arrow for the Guide
             guideMarker = new google.maps.Marker({
                 position: startPos, map: map,
-                icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2 }
+                icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 6, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2 }
             });
 
-            // --- THE SYNC ENGINE (Snap-back) ---
+            // 4. Sync Engine
             db.ref("tour/guide").on("value", (snap) => {
                 const data = snap.val();
                 if (!data) return;
 
-                // Always update the marker on the 2D map
                 guideMarker.setPosition(data.position);
                 let icon = guideMarker.getIcon();
                 icon.rotation = data.pov.heading;
                 guideMarker.setIcon(icon);
 
-                // If tethered, force the view to match the guide
                 if (isTethered) {
                     panorama.setPosition(data.position);
                     panorama.setPov(data.pov);
@@ -103,22 +107,19 @@
             });
         }
 
-        // --- TETHER LOGIC ---
         function toggleTether() {
             isTethered = !isTethered;
             document.getElementById("tetherBtn").innerText = isTethered ? "Untether" : "Tether Me";
             document.getElementById("status-indicator").innerText = isTethered ? "TETHERED" : "ROAMING";
-            
-            // Snap back immediately when re-tethering
             if (isTethered) {
-                db.ref("tour/guide").once("value", (snap) => {
-                    panorama.setPosition(snap.val().position);
-                    panorama.setPov(snap.val().pov);
+                db.ref("tour/guide").once("value", s => {
+                    panorama.setPosition(s.val().position);
+                    panorama.setPov(s.val().pov);
                 });
             }
         }
 
-        // --- DRAGGABLE SPLIT ---
+        // Resizer Logic
         const resizer = document.getElementById("resizer");
         const rightSide = document.getElementById("map-2d");
         let isResizing = false;
@@ -134,18 +135,30 @@
         });
         window.addEventListener("mouseup", () => isResizing = false);
 
-        // --- VIDEO HANDSHAKE ---
+        // --- IMPROVED VIDEO JOIN ---
         async function joinVideo() {
+            document.getElementById('joinBtn').innerText = "CONNECTING...";
             const vid = document.getElementById('remoteVideo');
+            
             pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
 
-            pc.ontrack = e => { vid.srcObject = e.streams[0]; vid.play(); };
-            pc.onicecandidate = e => e.candidate && db.ref("calls/active/touristCandidates").push(e.candidate.toJSON());
-            db.ref("calls/active/guideCandidates").on("child_added", s => s.val() && pc.addIceCandidate(new RTCIceCandidate(s.val())));
+            pc.ontrack = e => {
+                console.log("Stream received!");
+                vid.srcObject = e.streams[0];
+                vid.play().catch(err => console.error("Auto-play failed:", err));
+                document.getElementById('joinBtn').style.display = 'none';
+            };
 
+            pc.onicecandidate = e => e.candidate && db.ref("calls/active/touristCandidates").push(e.candidate.toJSON());
+            
+            db.ref("calls/active/guideCandidates").on("child_added", s => {
+                if(s.val()) pc.addIceCandidate(new RTCIceCandidate(s.val())).catch(e => {});
+            });
+
+            // Re-run connection whenever the Guide sends a new offer
             db.ref("calls/active/offer").on("value", async s => {
                 const offer = s.val();
-                if (offer && pc.signalingState !== "stable") {
+                if (offer && pc.signalingState !== "closed") {
                     await pc.setRemoteDescription(new RTCSessionDescription(offer));
                     const ans = await pc.createAnswer();
                     await pc.setLocalDescription(ans);
