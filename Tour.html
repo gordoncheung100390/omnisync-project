@@ -1,66 +1,71 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OMNISYNC | MASTER CONSOLE</title>
+    <title>OMNISYNC | GUIDE VIEW</title>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Inter', sans-serif; background: #000; }
-        #container { display: flex; height: 100vh; }
-        #street-view { flex: 3; background: #111; }
-        #map-2d { flex: 1; border-left: 2px solid #333; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; color: white; font-family: 'Inter', sans-serif; }
         
-        #search-container {
-            position: absolute; top: 20px; left: 20px; z-index: 1000;
-            width: 350px; display: flex; flex-direction: column; gap: 10px;
-        }
-        #pac-input {
-            width: 100%; padding: 15px; border-radius: 8px;
-            border: 2px solid #FFD700; background: white; color: black;
-            font-size: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); outline: none;
+        #main-layout { 
+            display: flex; 
+            height: 100vh; 
+            width: 100vw; 
+            overflow: hidden; 
         }
 
-        /* WEBCAM PREVIEW */
-        #video-container {
-            position: absolute; bottom: 20px; right: 20px;
-            width: 240px; aspect-ratio: 16/9; 
-            border: 2px solid #FFD700; border-radius: 12px;
-            background: #000; z-index: 2000; overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+        #street-view { 
+            flex: 1; 
+            min-width: 50px;
+            background: #111;
         }
-        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 
-        #broadcast-btn {
-            background: #FFD700; color: black; border: none; padding: 12px;
-            border-radius: 8px; font-weight: bold; cursor: pointer;
-            box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+        #map-2d { 
+            width: 35%; /* Guide usually wants a slightly larger map */
+            min-width: 50px;
+            background: #1a1a1a;
+            border-left: 1px solid #333;
         }
+
+        #resizer {
+            width: 12px;
+            cursor: col-resize;
+            background: #222;
+            border-left: 1px solid #444;
+            border-right: 1px solid #444;
+            transition: background 0.2s;
+            z-index: 10;
+        }
+        #resizer:hover, #resizer:active {
+            background: #FF4500; /* Reddish-orange for the Guide */
+        }
+
+        #guide-controls {
+            position: absolute; top: 20px; left: 20px;
+            z-index: 1000; background: rgba(0,0,0,0.8);
+            padding: 15px; border-radius: 10px; border: 1px solid #FF4500;
+        }
+
+        video { width: 180px; aspect-ratio: 16/9; background: #222; border-radius: 8px; display: block; margin-bottom: 10px; }
+        
+        button { background: #FF4500; border: none; padding: 10px 15px; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; width: 100%; }
     </style>
 </head>
 <body>
 
-    <div id="search-container">
-        <input id="pac-input" type="text" placeholder="Search for a destination...">
-        <button id="broadcast-btn" onclick="startBroadcast()">START LIVE BROADCAST</button>
+    <div id="guide-controls">
+        <video id="localVideo" autoplay muted playsinline></video>
+        <button id="startBtn" onclick="startBroadcast()">START BROADCAST</button>
     </div>
 
-    <div id="video-container">
-        <video id="localVideo" autoplay playsinline muted></video>
-    </div>
-
-    <div id="container">
+    <div id="main-layout">
         <div id="street-view"></div>
+        <div id="resizer"></div>
         <div id="map-2d"></div>
     </div>
 
     <script>
-        // --- 1. GOOGLE LOADER ---
-        (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Re-trying:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
-            key: "AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs",
-            v: "weekly"
-        });
-
-        // --- 2. FIREBASE SETUP ---
+        // --- FIREBASE CONFIG ---
         const firebaseConfig = {
             apiKey: "AIzaSyBuGMqqCArrL6vKWGRZkgDtn3tvt9wSpoo",
             authDomain: "virtual-tour-platform-492518.firebaseapp.com",
@@ -71,94 +76,94 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        let panorama, map, svService, pc, localStream;
+        // --- MAPS LOADER ---
+        (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Re-trying:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+            key: "AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs",
+            v: "weekly"
+        });
 
-        async function initApp() {
+        let panorama, map, pc, localStream;
+
+        async function init() {
             const { Map } = await google.maps.importLibrary("maps");
-            const { StreetViewPanorama, StreetViewService } = await google.maps.importLibrary("streetView");
-            const { Autocomplete } = await google.maps.importLibrary("places");
-
-            const startPos = { lat: 40.7562, lng: -73.9861 };
-            svService = new StreetViewService();
-            
-            map = new Map(document.getElementById("map-2d"), {
-                center: startPos, zoom: 15, mapTypeControl: false
-            });
+            const { StreetViewPanorama } = await google.maps.importLibrary("streetView");
+            const startPos = { lat: 40.7580, lng: -73.9855 };
 
             panorama = new StreetViewPanorama(document.getElementById("street-view"), {
-                position: startPos, visible: true, addressControl: false
+                position: startPos, visible: true
+            });
+
+            map = new Map(document.getElementById("map-2d"), {
+                center: startPos, zoom: 17, streetViewControl: true
             });
 
             map.setStreetView(panorama);
 
-            const input = document.getElementById("pac-input");
-            const autocomplete = new Autocomplete(input);
-            autocomplete.bindTo("bounds", map);
-
-            autocomplete.addListener("place_changed", () => {
-                const place = autocomplete.getPlace();
-                if (!place.geometry || !place.geometry.location) return;
-                const loc = place.geometry.location;
-                map.setCenter(loc);
-                map.setZoom(17);
-                svService.getPanorama({ location: loc, radius: 200 }, (data, status) => {
-                    if (status === "OK") panorama.setPano(data.location.pano);
-                    else panorama.setPosition(loc);
-                });
-            });
-
-            panorama.addListener("position_changed", updateFirebase);
-            panorama.addListener("pov_changed", updateFirebase);
-        }
-
-        function updateFirebase() {
-            const pos = panorama.getPosition();
-            const pov = panorama.getPov();
-            if (pos && pov) {
+            // SYNC TO FIREBASE
+            const updateSync = () => {
                 db.ref("tour/guide").set({
-                    position: { lat: pos.lat(), lng: pos.lng() },
-                    pov: { heading: pov.heading, pitch: pov.pitch, zoom: pov.zoom }
+                    position: panorama.getPosition().toJSON(),
+                    pov: panorama.getPov()
                 });
-            }
-        }
-
-        // --- 3. WEBRTC VIDEO LOGIC ---
-        async function startBroadcast() {
-            document.getElementById('broadcast-btn').innerText = "LIVE...";
-            document.getElementById('broadcast-btn').style.background = "#00ff00";
-
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            document.getElementById('localVideo').srcObject = localStream;
-
-            pc = new RTCPeerConnection({
-                iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-            });
-
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-            pc.onicecandidate = (e) => {
-                if (e.candidate) db.ref("calls/active/guideCandidates").push(e.candidate.toJSON());
             };
 
+            panorama.addListener("position_changed", updateSync);
+            panorama.addListener("pov_changed", updateSync);
+        }
+
+        // --- DRAGGABLE DIVIDER LOGIC ---
+        const resizer = document.getElementById("resizer");
+        const rightSide = document.getElementById("map-2d");
+        let isResizing = false;
+
+        const startResize = () => { isResizing = true; document.body.style.cursor = "col-resize"; };
+        const stopResize = () => { isResizing = false; document.body.style.cursor = "default"; };
+        const resize = (x) => {
+            if (!isResizing) return;
+            let newWidth = window.innerWidth - x;
+            if (newWidth > 50 && newWidth < window.innerWidth - 50) {
+                rightSide.style.width = newWidth + "px";
+                google.maps.event.trigger(map, "resize");
+                google.maps.event.trigger(panorama, "resize");
+            }
+        };
+
+        resizer.addEventListener("mousedown", startResize);
+        window.addEventListener("mousemove", (e) => resize(e.clientX));
+        window.addEventListener("mouseup", stopResize);
+        
+        resizer.addEventListener("touchstart", startResize);
+        window.addEventListener("touchmove", (e) => resize(e.touches[0].clientX));
+        window.addEventListener("touchend", stopResize);
+
+        // --- BROADCAST LOGIC ---
+        async function startBroadcast() {
+            document.getElementById('startBtn').innerText = "BROADCASTING...";
+            localStream = await navigator.mediaDevices.getUserMedia({ 
+                video: true, 
+                audio: { echoCancellation: true, noiseSuppression: true } 
+            });
+            document.getElementById('localVideo').srcObject = localStream;
+
+            pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+            pc.onicecandidate = (e) => { if (e.candidate) db.ref("calls/active/guideCandidates").push(e.candidate.toJSON()); };
+            
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            
-            // Clear and set offer
-            await db.ref("calls/active").remove();
-            await db.ref("calls/active/offer").set({ type: offer.type, sdp: offer.sdp });
+            db.ref("calls/active/offer").set({ type: offer.type, sdp: offer.sdp });
 
-            db.ref("calls/active/answer").on("value", async (snap) => {
-                if (snap.val() && !pc.currentRemoteDescription) {
-                    await pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
-                }
+            db.ref("calls/active/answer").on("value", (snap) => {
+                if (snap.val()) pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
             });
 
             db.ref("calls/active/touristCandidates").on("child_added", (snap) => {
-                if (snap.val()) pc.addIceCandidate(new RTCIceCandidate(snap.val())).catch(e => {});
+                if (snap.val()) pc.addIceCandidate(new RTCIceCandidate(snap.val()));
             });
         }
 
-        initApp();
+        init();
     </script>
 </body>
 </html>
