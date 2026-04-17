@@ -15,23 +15,24 @@
         /* VIDEO WINDOW */
         #vid-box { 
             position: absolute; top: 20px; right: 20px; width: 280px; aspect-ratio: 16/9; 
-            background: #000; border: 2px solid #FFD700; border-radius: 12px; z-index: 1000; overflow: hidden; 
+            background: #111; border: 2px solid #FFD700; border-radius: 12px; z-index: 1000; overflow: hidden; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
         video { width: 100%; height: 100%; object-fit: cover; }
 
-        /* CONTROLS */
         #controls { 
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); 
             z-index: 100; background: rgba(0,0,0,0.9); padding: 12px 25px; border-radius: 50px; 
             border: 1px solid #FFD700; display: flex; align-items: center; gap: 15px;
         }
         button { background: #FFD700; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; color: black; }
-        #status-indicator { color: #FFD700; font-size: 12px; font-weight: bold; min-width: 80px; text-align: center; }
     </style>
 </head>
 <body>
 
-    <div id="vid-box"><video id="remoteVideo" autoplay playsinline></video></div>
+    <div id="vid-box">
+        <video id="remoteVideo" autoplay playsinline muted></video>
+    </div>
 
     <div id="main-layout">
         <div id="street-view"></div>
@@ -40,9 +41,9 @@
     </div>
 
     <div id="controls">
-        <div id="status-indicator">TETHERED</div>
         <button id="tetherBtn" onclick="toggleTether()">Untether</button>
         <button id="joinBtn" onclick="joinVideo()">JOIN LIVE TOUR</button>
+        <button id="unmuteBtn" style="display:none; background:#FFF;" onclick="unmuteVideo()">ENABLE AUDIO</button>
     </div>
 
     <script>
@@ -65,40 +66,21 @@
         async function init() {
             const { Map } = await google.maps.importLibrary("maps");
             const { StreetViewPanorama } = await google.maps.importLibrary("streetView");
-            
             const startPos = { lat: 40.7580, lng: -73.9855 };
 
-            // 1. Setup Street View
-            panorama = new StreetViewPanorama(document.getElementById("street-view"), {
-                position: startPos, visible: true, addressControl: false
-            });
-
-            // 2. Setup 2D Map (WITH YELLOW MAN ENABLED)
-            map = new Map(document.getElementById("map-2d"), {
-                center: startPos, zoom: 17, 
-                streetViewControl: true, // THIS BRINGS THE YELLOW MAN BACK
-                mapTypeControl: false
-            });
-
-            // Link them so the Yellow Man moves when you move in Street View
+            panorama = new StreetViewPanorama(document.getElementById("street-view"), { position: startPos, visible: true });
+            map = new Map(document.getElementById("map-2d"), { center: startPos, zoom: 17, streetViewControl: true });
             map.setStreetView(panorama);
 
-            // 3. Create the Red Arrow for the Guide
             guideMarker = new google.maps.Marker({
                 position: startPos, map: map,
                 icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 6, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2 }
             });
 
-            // 4. Sync Engine
             db.ref("tour/guide").on("value", (snap) => {
                 const data = snap.val();
                 if (!data) return;
-
                 guideMarker.setPosition(data.position);
-                let icon = guideMarker.getIcon();
-                icon.rotation = data.pov.heading;
-                guideMarker.setIcon(icon);
-
                 if (isTethered) {
                     panorama.setPosition(data.position);
                     panorama.setPov(data.pov);
@@ -110,56 +92,34 @@
         function toggleTether() {
             isTethered = !isTethered;
             document.getElementById("tetherBtn").innerText = isTethered ? "Untether" : "Tether Me";
-            document.getElementById("status-indicator").innerText = isTethered ? "TETHERED" : "ROAMING";
-            if (isTethered) {
-                db.ref("tour/guide").once("value", s => {
-                    panorama.setPosition(s.val().position);
-                    panorama.setPov(s.val().pov);
-                });
-            }
         }
 
-        // Resizer Logic
-        const resizer = document.getElementById("resizer");
-        const rightSide = document.getElementById("map-2d");
-        let isResizing = false;
-        resizer.addEventListener("mousedown", () => isResizing = true);
-        window.addEventListener("mousemove", (e) => {
-            if (isResizing) {
-                let w = (window.innerWidth - e.clientX);
-                if (w > 50 && w < window.innerWidth - 50) {
-                    rightSide.style.width = w + "px";
-                    google.maps.event.trigger(map, "resize");
-                }
-            }
-        });
-        window.addEventListener("mouseup", () => isResizing = false);
-
-        // --- IMPROVED VIDEO JOIN ---
-        async function joinVideo() {
-            document.getElementById('joinBtn').innerText = "CONNECTING...";
+        function unmuteVideo() {
             const vid = document.getElementById('remoteVideo');
-            
+            vid.muted = false;
+            document.getElementById('unmuteBtn').style.display = 'none';
+        }
+
+        async function joinVideo() {
+            const vid = document.getElementById('remoteVideo');
             pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
 
             pc.ontrack = e => {
-                console.log("Stream received!");
                 vid.srcObject = e.streams[0];
-                vid.play().catch(err => console.error("Auto-play failed:", err));
+                vid.play();
                 document.getElementById('joinBtn').style.display = 'none';
+                document.getElementById('unmuteBtn').style.display = 'block'; // Show unmute button
             };
 
             pc.onicecandidate = e => e.candidate && db.ref("calls/active/touristCandidates").push(e.candidate.toJSON());
             
             db.ref("calls/active/guideCandidates").on("child_added", s => {
-                if(s.val()) pc.addIceCandidate(new RTCIceCandidate(s.val())).catch(e => {});
+                if(s.val()) pc.addIceCandidate(new RTCIceCandidate(s.val()));
             });
 
-            // Re-run connection whenever the Guide sends a new offer
             db.ref("calls/active/offer").on("value", async s => {
-                const offer = s.val();
-                if (offer && pc.signalingState !== "closed") {
-                    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                if (s.val() && pc.signalingState !== "closed") {
+                    await pc.setRemoteDescription(new RTCSessionDescription(s.val()));
                     const ans = await pc.createAnswer();
                     await pc.setLocalDescription(ans);
                     db.ref("calls/active/answer").set({ type: ans.type, sdp: ans.sdp });
