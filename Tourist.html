@@ -6,25 +6,46 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; color: white; font-family: sans-serif; }
+        
+        /* LAYOUT */
         #main-layout { display: flex; height: 100vh; width: 100vw; }
-        #street-view { flex: 1; }
+        #street-view { flex: 1; background: #111; }
         #map-2d { width: 30%; background: #1a1a1a; border-left: 1px solid #333; }
-        #resizer { width: 12px; cursor: col-resize; background: #222; z-index: 10; }
+        #resizer { width: 12px; cursor: col-resize; background: #222; z-index: 10; border-left: 1px solid #444; }
         #resizer:hover { background: #FFD700; }
-        #vid-box { position: absolute; top: 20px; right: 20px; width: 240px; aspect-ratio: 16/9; background: #000; border: 2px solid #FFD700; border-radius: 12px; z-index: 1000; overflow: hidden; }
+
+        /* VIDEO */
+        #vid-box { 
+            position: absolute; top: 20px; right: 20px; width: 240px; aspect-ratio: 16/9; 
+            background: #000; border: 2px solid #FFD700; border-radius: 12px; z-index: 1000; overflow: hidden; 
+        }
         video { width: 100%; height: 100%; object-fit: cover; }
-        #controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 100; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 50px; border: 1px solid #FFD700; }
-        button { background: #FFD700; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; }
+
+        /* CONTROLS */
+        #controls { 
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); 
+            z-index: 100; background: rgba(0,0,0,0.9); padding: 12px 25px; border-radius: 50px; 
+            border: 1px solid #FFD700; display: flex; align-items: center; gap: 15px;
+        }
+        button { background: #FFD700; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; color: black; }
+        #status-indicator { color: #FFD700; font-size: 12px; font-weight: bold; min-width: 80px; text-align: center; }
     </style>
 </head>
 <body>
+
     <div id="vid-box"><video id="remoteVideo" autoplay playsinline></video></div>
+
     <div id="main-layout">
         <div id="street-view"></div>
         <div id="resizer"></div>
         <div id="map-2d"></div>
     </div>
-    <div id="controls"><button id="joinBtn" onclick="joinVideo()">JOIN LIVE TOUR</button></div>
+
+    <div id="controls">
+        <div id="status-indicator">TETHERED</div>
+        <button id="tetherBtn" onclick="toggleTether()">Untether</button>
+        <button id="joinBtn" onclick="joinVideo()">JOIN LIVE TOUR</button>
+    </div>
 
     <script>
         const firebaseConfig = {
@@ -41,49 +62,98 @@
             key: "AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs", v: "weekly"
         });
 
-        let panorama, map, pc;
+        let panorama, map, guideMarker, isTethered = true, pc;
 
         async function init() {
             const { Map } = await google.maps.importLibrary("maps");
             const { StreetViewPanorama } = await google.maps.importLibrary("streetView");
-            panorama = new StreetViewPanorama(document.getElementById("street-view"), { position: { lat: 40.7580, lng: -73.9855 }, visible: true });
-            map = new Map(document.getElementById("map-2d"), { center: { lat: 40.7580, lng: -73.9855 }, zoom: 17 });
-            db.ref("tour/guide").on("value", s => {
-                if(s.val()) { panorama.setPosition(s.val().position); panorama.setPov(s.val().pov); map.setCenter(s.val().position); }
+            
+            const startPos = { lat: 40.7580, lng: -73.9855 };
+
+            panorama = new StreetViewPanorama(document.getElementById("street-view"), {
+                position: startPos, visible: true, addressControl: false
+            });
+
+            map = new Map(document.getElementById("map-2d"), {
+                center: startPos, zoom: 17, streetViewControl: true
+            });
+
+            guideMarker = new google.maps.Marker({
+                position: startPos, map: map,
+                icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2 }
+            });
+
+            // --- THE SYNC ENGINE (Snap-back) ---
+            db.ref("tour/guide").on("value", (snap) => {
+                const data = snap.val();
+                if (!data) return;
+
+                // Always update the marker on the 2D map
+                guideMarker.setPosition(data.position);
+                let icon = guideMarker.getIcon();
+                icon.rotation = data.pov.heading;
+                guideMarker.setIcon(icon);
+
+                // If tethered, force the view to match the guide
+                if (isTethered) {
+                    panorama.setPosition(data.position);
+                    panorama.setPov(data.pov);
+                    map.setCenter(data.position);
+                }
             });
         }
 
-        // RESIZER
+        // --- TETHER LOGIC ---
+        function toggleTether() {
+            isTethered = !isTethered;
+            document.getElementById("tetherBtn").innerText = isTethered ? "Untether" : "Tether Me";
+            document.getElementById("status-indicator").innerText = isTethered ? "TETHERED" : "ROAMING";
+            
+            // Snap back immediately when re-tethering
+            if (isTethered) {
+                db.ref("tour/guide").once("value", (snap) => {
+                    panorama.setPosition(snap.val().position);
+                    panorama.setPov(snap.val().pov);
+                });
+            }
+        }
+
+        // --- DRAGGABLE SPLIT ---
         const resizer = document.getElementById("resizer");
         const rightSide = document.getElementById("map-2d");
         let isResizing = false;
         resizer.addEventListener("mousedown", () => isResizing = true);
-        window.addEventListener("mousemove", (e) => { if(isResizing) rightSide.style.width = (window.innerWidth - e.clientX) + "px"; });
+        window.addEventListener("mousemove", (e) => {
+            if (isResizing) {
+                let w = (window.innerWidth - e.clientX);
+                if (w > 50 && w < window.innerWidth - 50) {
+                    rightSide.style.width = w + "px";
+                    google.maps.event.trigger(map, "resize");
+                }
+            }
+        });
         window.addEventListener("mouseup", () => isResizing = false);
 
+        // --- VIDEO HANDSHAKE ---
         async function joinVideo() {
             const vid = document.getElementById('remoteVideo');
             pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-            
-            // This event fires when the stream finally arrives
-            pc.ontrack = e => { vid.srcObject = e.streams[0]; vid.play(); };
 
-            // Send my info to the guide
+            pc.ontrack = e => { vid.srcObject = e.streams[0]; vid.play(); };
             pc.onicecandidate = e => e.candidate && db.ref("calls/active/touristCandidates").push(e.candidate.toJSON());
-            
-            // Listen for guide's connection info
             db.ref("calls/active/guideCandidates").on("child_added", s => s.val() && pc.addIceCandidate(new RTCIceCandidate(s.val())));
-            
-            // Get the offer and answer it
-            db.ref("calls/active/offer").once("value", async s => {
-                if(s.val()){
-                    await pc.setRemoteDescription(new RTCSessionDescription(s.val()));
+
+            db.ref("calls/active/offer").on("value", async s => {
+                const offer = s.val();
+                if (offer && pc.signalingState !== "stable") {
+                    await pc.setRemoteDescription(new RTCSessionDescription(offer));
                     const ans = await pc.createAnswer();
                     await pc.setLocalDescription(ans);
                     db.ref("calls/active/answer").set({ type: ans.type, sdp: ans.sdp });
                 }
             });
         }
+
         init();
     </script>
 </body>
