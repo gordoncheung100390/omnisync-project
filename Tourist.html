@@ -11,39 +11,22 @@
         #map-2d { width: 30%; background: #1a1a1a; border-left: 1px solid #333; }
         #resizer { width: 12px; cursor: col-resize; background: #222; z-index: 10; border-left: 1px solid #444; }
         #resizer:hover { background: #FFD700; }
-        
-        /* VIDEO WINDOW */
-        #vid-box { 
-            position: absolute; top: 20px; right: 20px; width: 280px; aspect-ratio: 16/9; 
-            background: #111; border: 2px solid #FFD700; border-radius: 12px; z-index: 1000; overflow: hidden; 
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-        }
+        #vid-box { position: absolute; top: 20px; right: 20px; width: 280px; aspect-ratio: 16/9; background: #111; border: 2px solid #FFD700; border-radius: 12px; z-index: 1000; overflow: hidden; }
         video { width: 100%; height: 100%; object-fit: cover; }
-
-        #controls { 
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); 
-            z-index: 100; background: rgba(0,0,0,0.9); padding: 12px 25px; border-radius: 50px; 
-            border: 1px solid #FFD700; display: flex; align-items: center; gap: 15px;
-        }
+        #controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 100; background: rgba(0,0,0,0.9); padding: 12px 25px; border-radius: 50px; border: 1px solid #FFD700; display: flex; gap: 15px; }
         button { background: #FFD700; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; color: black; }
     </style>
 </head>
 <body>
-
-    <div id="vid-box">
-        <video id="remoteVideo" autoplay playsinline muted></video>
-    </div>
-
+    <div id="vid-box"><video id="remoteVideo" autoplay playsinline muted></video></div>
     <div id="main-layout">
         <div id="street-view"></div>
         <div id="resizer"></div>
         <div id="map-2d"></div>
     </div>
-
     <div id="controls">
         <button id="tetherBtn" onclick="toggleTether()">Untether</button>
         <button id="joinBtn" onclick="joinVideo()">JOIN LIVE TOUR</button>
-        <button id="unmuteBtn" style="display:none; background:#FFF;" onclick="unmuteVideo()">ENABLE AUDIO</button>
     </div>
 
     <script>
@@ -57,7 +40,7 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Re-trying:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+        (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.set?k:k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Re-trying:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
             key: "AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs", v: "weekly"
         });
 
@@ -66,21 +49,22 @@
         async function init() {
             const { Map } = await google.maps.importLibrary("maps");
             const { StreetViewPanorama } = await google.maps.importLibrary("streetView");
+            const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+            
             const startPos = { lat: 40.7580, lng: -73.9855 };
-
             panorama = new StreetViewPanorama(document.getElementById("street-view"), { position: startPos, visible: true });
-            map = new Map(document.getElementById("map-2d"), { center: startPos, zoom: 17, streetViewControl: true });
+            map = new Map(document.getElementById("map-2d"), { center: startPos, zoom: 17, streetViewControl: true, mapId: "DEMO_MAP_ID" });
             map.setStreetView(panorama);
 
-            guideMarker = new google.maps.Marker({
-                position: startPos, map: map,
-                icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 6, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2 }
-            });
+            const markerTag = document.createElement('div');
+            markerTag.innerHTML = '<div style="width:20px;height:20px;background:red;border-radius:50%;border:2px solid white;"></div>';
+            
+            guideMarker = new AdvancedMarkerElement({ map: map, position: startPos, content: markerTag });
 
             db.ref("tour/guide").on("value", (snap) => {
                 const data = snap.val();
                 if (!data) return;
-                guideMarker.setPosition(data.position);
+                guideMarker.position = data.position;
                 if (isTethered) {
                     panorama.setPosition(data.position);
                     panorama.setPov(data.pov);
@@ -89,44 +73,40 @@
             });
         }
 
-        function toggleTether() {
-            isTethered = !isTethered;
-            document.getElementById("tetherBtn").innerText = isTethered ? "Untether" : "Tether Me";
-        }
+        // Resizer
+        const resizer = document.getElementById("resizer");
+        const rightSide = document.getElementById("map-2d");
+        let isResizing = false;
+        resizer.addEventListener("mousedown", () => isResizing = true);
+        window.addEventListener("mousemove", (e) => { if(isResizing) rightSide.style.width = (window.innerWidth - e.clientX) + "px"; });
+        window.addEventListener("mouseup", () => isResizing = false);
 
-        function unmuteVideo() {
-            const vid = document.getElementById('remoteVideo');
-            vid.muted = false;
-            document.getElementById('unmuteBtn').style.display = 'none';
-        }
+        function toggleTether() { isTethered = !isTethered; document.getElementById("tetherBtn").innerText = isTethered ? "Untether" : "Tether Me"; }
 
+        // --- THE "FIXED" VIDEO JOIN ---
         async function joinVideo() {
+            document.getElementById('joinBtn').innerText = "WAITING FOR GUIDE...";
             const vid = document.getElementById('remoteVideo');
             pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
 
-            pc.ontrack = e => {
-                vid.srcObject = e.streams[0];
-                vid.play();
-                document.getElementById('joinBtn').style.display = 'none';
-                document.getElementById('unmuteBtn').style.display = 'block'; // Show unmute button
-            };
-
+            pc.ontrack = e => { vid.srcObject = e.streams[0]; vid.muted = false; vid.play(); document.getElementById('joinBtn').style.display = 'none'; };
             pc.onicecandidate = e => e.candidate && db.ref("calls/active/touristCandidates").push(e.candidate.toJSON());
-            
+
+            // Only add candidates IF we have a remote description
             db.ref("calls/active/guideCandidates").on("child_added", s => {
-                if(s.val()) pc.addIceCandidate(new RTCIceCandidate(s.val()));
+                if(s.val() && pc.remoteDescription) pc.addIceCandidate(new RTCIceCandidate(s.val()));
             });
 
             db.ref("calls/active/offer").on("value", async s => {
-                if (s.val() && pc.signalingState !== "closed") {
-                    await pc.setRemoteDescription(new RTCSessionDescription(s.val()));
+                const offer = s.val();
+                if (offer && pc.signalingState !== "stable") {
+                    await pc.setRemoteDescription(new RTCSessionDescription(offer));
                     const ans = await pc.createAnswer();
                     await pc.setLocalDescription(ans);
                     db.ref("calls/active/answer").set({ type: ans.type, sdp: ans.sdp });
                 }
             });
         }
-
         init();
     </script>
 </body>
