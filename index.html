@@ -5,15 +5,17 @@
     <style>
         body { background: #000; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .box { text-align: center; border: 1px solid #444; padding: 40px; border-radius: 20px; }
-        h1 { color: #FFD700; margin-bottom: 30px; }
+        h1 { color: #FFD700; margin-bottom: 30px; letter-spacing: 2px; }
         .btn { 
             display: block; width: 250px; padding: 15px; margin: 10px auto; 
             text-decoration: none; font-weight: bold; border-radius: 10px; transition: 0.3s;
+            text-transform: uppercase;
         }
         .guide-btn { background: #FFD700; color: black; }
         .tourist-btn { border: 2px solid #FFD700; color: #FFD700; }
         .guide-btn:hover { background: white; }
         .tourist-btn:hover { background: rgba(255,215,0,0.1); }
+        .note { color: #666; font-size: 11px; margin-top: 20px; }
     </style>
 </head>
 <body>
@@ -21,12 +23,11 @@
     <div class="box">
         <h1>OMNISYNC</h1>
         
-        <a href="tour.html" class="btn guide-btn">OPEN GUIDE CONSOLE</a>
-
-        <a href="tourist.html" class="btn tourist-btn">OPEN TOURIST VIEW</a>
+        <a href="Tour.html" class="btn guide-btn">Open Guide Console</a>
+        <a href="Tourist.html" class="btn tourist-btn">Open Tourist View</a>
         
-        <p style="color: #666; font-size: 12px; margin-top: 20px;">
-            Note: Guide Console resets the chat history.
+        <p class="note">
+            GUIDE CONSOLE resets the chat history upon entry.
         </p>
     </div>
 
