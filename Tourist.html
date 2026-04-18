@@ -1,59 +1,114 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>OMNISYNC | TOURIST VIEW</title>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;700&display=swap');
         
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; color: white; font-family: 'Inter', sans-serif; }
+        body, html { 
+            margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; 
+            background: #000; color: white; font-family: 'Inter', sans-serif; 
+        }
         
-        #container { display: flex; height: 100vh; width: 100vw; }
-
-        /* DESKTOP LAYOUT */
-        #street-view { flex: 1; background: #111; height: 100%; }
-        #map-2d { width: 25%; background: #1a1a1a; height: 100%; }
-        #resizer { width: 4px; background: #222; z-index: 10; border-left: 1px solid #333; }
-
-        /* MOBILE OVERRIDE */
-        @media (max-width: 768px) {
-            #container { flex-direction: column; }
-            #street-view { height: 65vh; width: 100%; }
-            #map-2d { height: 35vh; width: 100% !important; }
-            #resizer { display: none; }
-            #guide-video-container { width: 120px; top: 10px; right: 10px; }
-            #overlay-ui { bottom: 20px; width: 90%; padding: 10px; gap: 10px; }
-            #chat-container { width: 150px; height: 120px; bottom: 85px; left: 10px; }
-            #status-text { font-size: 8px; min-width: auto; }
-            button.ui-btn { padding: 8px 12px; font-size: 9px; }
+        /* MOBILE FIRST: STACKED LAYOUT */
+        #container { 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            width: 100vw; 
         }
 
-        /* UI ELEMENTS */
-        #guide-video-container { position: absolute; top: 20px; right: 20px; width: 240px; aspect-ratio: 16/9; background: #000; border: 1px solid #fff; z-index: 1000; overflow: hidden; }
+        #street-view { 
+            height: 60vh; 
+            width: 100%; 
+            background: #111; 
+        }
+
+        #map-2d { 
+            height: 40vh; 
+            width: 100%; 
+            background: #1a1a1a; 
+        }
+
+        #resizer { display: none; } /* Hidden on mobile */
+
+        /* DESKTOP OVERRIDE: SIDE-BY-SIDE */
+        @media (min-width: 900px) {
+            #container { flex-direction: row; }
+            #street-view { height: 100%; flex: 1; }
+            #map-2d { height: 100%; width: 30%; }
+            #resizer { 
+                display: block; 
+                width: 4px; 
+                background: #222; 
+                cursor: col-resize; 
+                z-index: 10; 
+                border-left: 1px solid #333; 
+            }
+        }
+
+        /* FLOATING UI ELEMENTS */
+        #guide-video-container { 
+            position: absolute; top: 15px; right: 15px; 
+            width: 130px; aspect-ratio: 16/9; 
+            background: #000; border: 1px solid #fff; 
+            z-index: 1000; overflow: hidden; 
+        }
+        @media (min-width: 900px) { #guide-video-container { width: 240px; } }
+        
         video { width: 100%; height: 100%; object-fit: cover; }
-        
-        #overlay-ui { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: 20px; background: rgba(0,0,0,0.85); padding: 10px 25px; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(15px); box-sizing: border-box; }
-        #status-text { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: #fff; text-transform: uppercase; min-width: 100px; text-align: center;}
-        button.ui-btn { background: #fff; border: none; padding: 10px 20px; font-size: 11px; font-weight: 700; cursor: pointer; color: #000; text-transform: uppercase; }
-        
-        #chat-container { position: absolute; bottom: 100px; left: 20px; width: 280px; height: 220px; background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; z-index: 500; }
-        #messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 12px; }
+
+        #chat-container { 
+            position: absolute; bottom: 90px; left: 15px; 
+            width: 180px; height: 160px; 
+            background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1); 
+            display: flex; flex-direction: column; z-index: 500; 
+            backdrop-filter: blur(10px);
+        }
+        @media (min-width: 900px) { #chat-container { width: 280px; height: 220px; bottom: 100px; } }
+
+        #messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 11px; color: #ccc; }
         #chat-input-area { display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding: 5px; }
-        #chat-input { flex: 1; background: transparent; border: none; color: white; padding: 8px; outline: none; }
-        #send-btn { background: transparent; color: #fff; border: none; padding: 0 10px; cursor: pointer; }
+        #chat-input { flex: 1; background: transparent; border: none; color: white; padding: 8px; outline: none; font-size: 12px; }
+        #send-btn { background: transparent; color: #fff; border: none; padding: 0 10px; cursor: pointer; font-weight: bold; }
+
+        /* BOTTOM CONTROL BAR */
+        #overlay-ui { 
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
+            z-index: 1000; display: flex; align-items: center; gap: 15px; 
+            background: rgba(0,0,0,0.9); padding: 10px 20px; 
+            border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(15px);
+            width: 90%; max-width: 450px; justify-content: space-between;
+            box-sizing: border-box; border-radius: 4px;
+        }
+        #status-text { font-size: 9px; font-weight: 700; letter-spacing: 2px; color: #fff; text-transform: uppercase; }
+        button.ui-btn { 
+            background: #fff; border: none; padding: 10px 15px; 
+            font-size: 10px; font-weight: 700; letter-spacing: 1px; cursor: pointer; color: #000; 
+            text-transform: uppercase;
+        }
     </style>
 </head>
 <body>
     <div id="guide-video-container"><video id="remoteVideo" autoplay playsinline></video></div>
+    
     <div id="chat-container">
         <div id="messages"></div>
         <div id="chat-input-area">
-            <input type="text" id="chat-input" placeholder="Message guide..." onkeypress="if(event.key==='Enter') sendMessage()">
+            <input type="text" id="chat-input" placeholder="Message..." onkeypress="if(event.key==='Enter') sendMessage()">
             <button id="send-btn" onclick="sendMessage()">></button>
         </div>
     </div>
-    <div id="container"><div id="street-view"></div><div id="resizer"></div><div id="map-2d"></div></div>
+
+    <div id="container">
+        <div id="street-view"></div>
+        <div id="resizer"></div>
+        <div id="map-2d"></div>
+    </div>
     
     <div id="overlay-ui">
         <span id="status-text">TETHERED</span>
@@ -82,10 +137,19 @@
             const { Map } = await google.maps.importLibrary("maps");
             const { StreetViewPanorama } = await google.maps.importLibrary("streetView");
             const startPos = { lat: 40.7580, lng: -73.9855 };
-            panorama = new StreetViewPanorama(document.getElementById("street-view"), { position: startPos, pov: { heading: 0, pitch: 0 }, visible: true, addressControl: false });
+            
+            panorama = new StreetViewPanorama(document.getElementById("street-view"), { 
+                position: startPos, pov: { heading: 0, pitch: 0 }, visible: true, addressControl: false 
+            });
+            
             map = new Map(document.getElementById("map-2d"), { center: startPos, zoom: 17 });
             map.setStreetView(panorama);
-            guideMarker = new google.maps.Marker({ position: startPos, map: map, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2 } });
+            
+            guideMarker = new google.maps.Marker({ 
+                position: startPos, map: map, 
+                icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 6, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2 } 
+            });
+
             db.ref("tour/guide").on("value", (snap) => {
                 const data = snap.val();
                 if (!data) return;
@@ -139,7 +203,12 @@
         const rightSide = document.getElementById("map-2d");
         let isResizing = false;
         resizer.addEventListener("mousedown", () => isResizing = true);
-        window.addEventListener("mousemove", (e) => { if (isResizing) { rightSide.style.width = (window.innerWidth - e.clientX) + "px"; google.maps.event.trigger(map, 'resize'); } });
+        window.addEventListener("mousemove", (e) => { 
+            if (isResizing) { 
+                rightSide.style.width = (window.innerWidth - e.clientX) + "px"; 
+                google.maps.event.trigger(map, 'resize'); 
+            } 
+        });
         window.addEventListener("mouseup", () => isResizing = false);
 
         function toggleTether() {
