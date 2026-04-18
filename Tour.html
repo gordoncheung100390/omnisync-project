@@ -1,45 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OMNISYNC | MASTER CONSOLE-v1</title>
+    <title>OMNISYNC | MASTER CONSOLE</title>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Inter', sans-serif; background: #000; }
-        #container { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
-        #street-view { flex: 1; min-width: 100px; background: #111; }
-        #resizer { width: 10px; background: #222; cursor: col-resize; z-index: 10; border-left: 1px solid #444; border-right: 1px solid #444; transition: 0.2s; }
-        #resizer:hover { background: #FFD700; }
-        #map-2d { width: 30%; min-width: 100px; background: #1a1a1a; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;700&display=swap');
+        
+        body, html { 
+            margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; 
+            font-family: 'Inter', sans-serif; background: #000; color: #fff;
+        }
+        
+        #container { display: flex; height: 100vh; width: 100vw; }
+
+        /* DESKTOP LAYOUT */
+        #street-view { flex: 1; background: #111; height: 100%; }
+        #map-2d { width: 30%; background: #1a1a1a; height: 100%; }
+        #resizer { width: 4px; background: #222; cursor: col-resize; z-index: 10; border-left: 1px solid #444; }
+
+        /* MOBILE OVERRIDE */
+        @media (max-width: 768px) {
+            #container { flex-direction: column; }
+            #street-view { height: 60vh; width: 100%; flex: none; }
+            #map-2d { height: 40vh; width: 100% !important; flex: none; }
+            #resizer { display: none; }
+            #search-container { width: calc(100% - 40px); top: 10px; left: 20px; }
+            #video-container { width: 140px; bottom: auto; top: 70px; right: 10px; }
+            #chat-container { width: 180px; height: 150px; bottom: 10px; left: 10px; font-size: 10px; }
+        }
+
+        /* UI ELEMENTS */
         #search-container { position: absolute; top: 20px; left: 20px; z-index: 1000; width: 350px; display: flex; flex-direction: column; gap: 10px; }
-        #pac-input { width: 100%; padding: 15px; border-radius: 8px; border: 2px solid #FFD700; background: white; color: black; font-size: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); outline: none; }
-        #video-container { position: absolute; bottom: 20px; right: 20px; width: 240px; aspect-ratio: 16/9; border: 2px solid #FFD700; border-radius: 12px; background: #000; z-index: 2000; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        #pac-input { width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.8); color: white; outline: none; backdrop-filter: blur(10px); box-sizing: border-box; }
+        #broadcast-btn { background: #fff; color: #000; border: none; padding: 12px; font-weight: 700; letter-spacing: 2px; cursor: pointer; text-transform: uppercase; }
+        
+        #video-container { position: absolute; bottom: 20px; right: 20px; width: 220px; aspect-ratio: 16/9; border: 1px solid #fff; background: #000; z-index: 2000; overflow: hidden; }
         video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-        #chat-container { position: absolute; bottom: 20px; left: 20px; width: 300px; height: 250px; background: rgba(0,0,0,0.85); border-radius: 12px; display: flex; flex-direction: column; border: 1px solid #444; z-index: 500; backdrop-filter: blur(5px); }
-        #messages { flex: 1; overflow-y: auto; padding: 15px; font-size: 14px; display: flex; flex-direction: column; gap: 8px; color: white; }
-        .msg b { color: #FFD700; }
-        .msg.tourist b { color: #00E5FF; }
-        #chat-input-area { display: flex; border-top: 1px solid #444; padding: 5px; }
+        
+        #chat-container { position: absolute; bottom: 20px; left: 20px; width: 300px; height: 250px; background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.2); display: flex; flex-direction: column; z-index: 500; backdrop-filter: blur(10px); }
+        #messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 12px; color: #ccc; }
+        .msg b { color: #fff; }
+        
+        #chat-input-area { display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding: 5px; }
         #chat-input { flex: 1; background: transparent; border: none; color: white; padding: 10px; outline: none; }
-        #send-btn { background: #FFD700; border: none; padding: 0 15px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        #broadcast-btn { background: #FFD700; color: black; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        #send-btn { background: transparent; color: #fff; border: none; padding: 0 15px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
     <div id="search-container">
-        <input id="pac-input" type="text" placeholder="Search for a destination...">
-        <button id="broadcast-btn" onclick="startBroadcast()">START LIVE BROADCAST</button>
+        <input id="pac-input" type="text" placeholder="SEARCH DESTINATION...">
+        <button id="broadcast-btn" onclick="startBroadcast()">START MISSION</button>
     </div>
     <div id="chat-container">
         <div id="messages"></div>
         <div id="chat-input-area">
-            <input type="text" id="chat-input" placeholder="Reply to tourist..." onkeypress="if(event.key==='Enter') sendMessage()">
+            <input type="text" id="chat-input" placeholder="Message tourists..." onkeypress="if(event.key==='Enter') sendMessage()">
             <button id="send-btn" onclick="sendMessage()">SEND</button>
         </div>
     </div>
-    <div id="video-container">
-        <video id="localVideo" autoplay playsinline muted></video>
-    </div>
+    <div id="video-container"><video id="localVideo" autoplay playsinline muted></video></div>
     <div id="container">
         <div id="street-view"></div>
         <div id="resizer"></div>
@@ -56,8 +76,6 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-
-        // --- RESET CHAT FOR NEW SESSION ---
         db.ref("chat").remove();
 
         const resizer = document.getElementById("resizer");
@@ -131,8 +149,6 @@
             document.getElementById("messages").appendChild(div);
             document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
         });
-
-        db.ref("chat").on("value", (snap) => { if(!snap.exists()) document.getElementById("messages").innerHTML = ""; });
 
         async function startBroadcast() {
             document.getElementById('broadcast-btn').innerText = "LIVE...";
