@@ -1,97 +1,170 @@
-<script>
-    // ... (Keep Firebase Config & Maps Loader as they are) ...
-
-    let panorama, map, pc, localStream, touristMarkers = {};
-
-    async function initApp() {
-        const { Map } = await google.maps.importLibrary("maps");
-        const { StreetViewPanorama } = await google.maps.importLibrary("streetView");
-        const { Autocomplete } = await google.maps.importLibrary("places");
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OMNISYNC | MASTER CONSOLE</title>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;700&display=swap');
         
-        const startPos = { lat: 40.7562, lng: -73.9861 };
+        body, html { 
+            margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; 
+            font-family: 'Inter', sans-serif; background: #000; color: #fff;
+        }
         
-        map = new Map(document.getElementById("map-2d"), { 
-            center: startPos, 
-            zoom: 15, 
-            mapId: "4504f8b373a3ad47",
-            disableDefaultUI: true // Cleaner for mobile
-        });
+        #container { display: flex; height: 100vh; width: 100vw; }
 
-        panorama = new StreetViewPanorama(document.getElementById("street-view"), { 
-            position: startPos, 
-            visible: true, 
-            addressControl: false,
-            motionTracking: false, // Prevents "gyroscope" bugs on mobile
-            motionTrackingControl: false 
-        });
+        /* DESKTOP LAYOUT */
+        #street-view { flex: 1; background: #111; height: 100%; }
+        #map-2d { width: 30%; background: #1a1a1a; height: 100%; }
+        #resizer { width: 4px; background: #222; cursor: col-resize; z-index: 10; border-left: 1px solid #444; }
 
-        map.setStreetView(panorama);
+        /* MOBILE OVERRIDE */
+        @media (max-width: 768px) {
+            #container { flex-direction: column; }
+            #street-view { height: 60vh; width: 100%; flex: none; }
+            #map-2d { height: 40vh; width: 100% !important; flex: none; }
+            #resizer { display: none; }
+            #search-container { width: calc(100% - 40px); top: 10px; left: 20px; }
+            #video-container { width: 140px; bottom: auto; top: 70px; right: 10px; }
+            #chat-container { width: 180px; height: 150px; bottom: 10px; left: 10px; font-size: 10px; }
+        }
 
-        // --- FIXED RESIZER LOGIC ---
+        /* UI ELEMENTS */
+        #search-container { position: absolute; top: 20px; left: 20px; z-index: 1000; width: 350px; display: flex; flex-direction: column; gap: 10px; }
+        #pac-input { width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.8); color: white; outline: none; backdrop-filter: blur(10px); box-sizing: border-box; }
+        #broadcast-btn { background: #fff; color: #000; border: none; padding: 12px; font-weight: 700; letter-spacing: 2px; cursor: pointer; text-transform: uppercase; }
+        
+        #video-container { position: absolute; bottom: 20px; right: 20px; width: 220px; aspect-ratio: 16/9; border: 1px solid #fff; background: #000; z-index: 2000; overflow: hidden; }
+        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        
+        #chat-container { position: absolute; bottom: 20px; left: 20px; width: 300px; height: 250px; background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.2); display: flex; flex-direction: column; z-index: 500; backdrop-filter: blur(10px); }
+        #messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 12px; color: #ccc; }
+        .msg b { color: #fff; }
+        
+        #chat-input-area { display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding: 5px; }
+        #chat-input { flex: 1; background: transparent; border: none; color: white; padding: 10px; outline: none; }
+        #send-btn { background: transparent; color: #fff; border: none; padding: 0 15px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="search-container">
+        <input id="pac-input" type="text" placeholder="SEARCH DESTINATION...">
+        <button id="broadcast-btn" onclick="startBroadcast()">START MISSION</button>
+    </div>
+    <div id="chat-container">
+        <div id="messages"></div>
+        <div id="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Message tourists..." onkeypress="if(event.key==='Enter') sendMessage()">
+            <button id="send-btn" onclick="sendMessage()">SEND</button>
+        </div>
+    </div>
+    <div id="video-container"><video id="localVideo" autoplay playsinline muted></video></div>
+    <div id="container">
+        <div id="street-view"></div>
+        <div id="resizer"></div>
+        <div id="map-2d"></div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBuGMqqCArrL6vKWGRZkgDtn3tvt9wSpoo",
+            authDomain: "virtual-tour-platform-492518.firebaseapp.com",
+            projectId: "virtual-tour-platform-492518",
+            databaseURL: "https://virtual-tour-platform-492518-default-rtdb.firebaseio.com",
+            appId: "1:1070677438051:web:503e2c36472edd11e1d256"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        db.ref("chat").remove();
+
         const resizer = document.getElementById("resizer");
         const rightSide = document.getElementById("map-2d");
         let isResizing = false;
-
-        resizer.addEventListener("mousedown", (e) => {
-            isResizing = true;
-            document.body.style.cursor = "col-resize";
-        });
-
+        resizer.addEventListener("mousedown", () => isResizing = true);
         window.addEventListener("mousemove", (e) => {
-            if (!isResizing || window.innerWidth < 900) return;
+            if (!isResizing) return;
             const newWidth = window.innerWidth - e.clientX;
-            if (newWidth > 150 && newWidth < window.innerWidth * 0.7) {
+            if (newWidth > 100) {
                 rightSide.style.width = newWidth + "px";
+                if(map) google.maps.event.trigger(map, "resize");
             }
         });
+        window.addEventListener("mouseup", () => isResizing = false);
 
-        window.addEventListener("mouseup", () => {
-            isResizing = false;
-            document.body.style.cursor = "default";
-            google.maps.event.trigger(map, "resize");
+        (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Re-trying:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+            key: "AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs", v: "weekly"
         });
 
-        // ... (Keep Autocomplete & Radar logic) ...
-    }
+        let panorama, map, svService, pc, localStream;
 
-    // --- FIXED WEBCAM BROADCAST ---
-    async function startBroadcast() {
-        try {
-            const btn = document.getElementById('broadcast-btn');
-            btn.innerText = "REQUESTING CAMERA...";
-            
-            localStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { width: 1280, height: 720 }, 
-                audio: true 
+        async function initApp() {
+            const { Map } = await google.maps.importLibrary("maps");
+            const { StreetViewPanorama, StreetViewService } = await google.maps.importLibrary("streetView");
+            const { Autocomplete } = await google.maps.importLibrary("places");
+            const startPos = { lat: 40.7562, lng: -73.9861 };
+            svService = new StreetViewService();
+            map = new Map(document.getElementById("map-2d"), { center: startPos, zoom: 15, mapId: "4504f8b373a3ad47" });
+            panorama = new StreetViewPanorama(document.getElementById("street-view"), { position: startPos, visible: true, addressControl: false });
+            map.setStreetView(panorama);
+            const autocomplete = new Autocomplete(document.getElementById("pac-input"));
+            autocomplete.bindTo("bounds", map);
+            autocomplete.addListener("place_changed", () => {
+                const place = autocomplete.getPlace();
+                if (!place.geometry) return;
+                const loc = place.geometry.location;
+                map.setCenter(loc);
+                svService.getPanorama({ location: loc, radius: 200 }, (data, status) => {
+                    if (status === "OK") panorama.setPano(data.location.pano);
+                    else panorama.setPosition(loc);
+                });
             });
-            
-            const videoElement = document.getElementById('localVideo');
-            videoElement.srcObject = localStream;
-            // Force play for mobile
-            videoElement.play(); 
-            
-            btn.innerText = "LIVE MISSION";
-            btn.style.background = "#ff0000";
-            btn.style.color = "#fff";
+            panorama.addListener("position_changed", updateFirebase);
+            panorama.addListener("pov_changed", updateFirebase);
+        }
 
-            // WebRTC Logic continues...
+        function updateFirebase() {
+            const pos = panorama.getPosition();
+            const pov = panorama.getPov();
+            if (pos && pov) {
+                db.ref("tour/guide").set({
+                    position: { lat: pos.lat(), lng: pos.lng() },
+                    pov: { heading: pov.heading, pitch: pov.pitch, zoom: pov.zoom }
+                });
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            if (!input.value.trim()) return;
+            db.ref("chat").push({ sender: "Guide", text: input.value, timestamp: Date.now() });
+            input.value = "";
+        }
+
+        db.ref("chat").on("child_added", (snap) => {
+            const data = snap.val();
+            const div = document.createElement("div");
+            div.className = "msg " + (data.sender === "Tourist" ? "tourist" : "");
+            div.innerHTML = `<b>${data.sender}:</b> ${data.text}`;
+            document.getElementById("messages").appendChild(div);
+            document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+        });
+
+        async function startBroadcast() {
+            document.getElementById('broadcast-btn').innerText = "LIVE...";
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            document.getElementById('localVideo').srcObject = localStream;
             pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
             localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-            
             pc.onicecandidate = (e) => { if (e.candidate) db.ref("calls/active/guideCandidates").push(e.candidate.toJSON()); };
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
+            await db.ref("calls/active").remove();
             await db.ref("calls/active/offer").set({ type: offer.type, sdp: offer.sdp });
-            
-            db.ref("calls/active/answer").on("value", snap => {
-                if (snap.val() && !pc.currentRemoteDescription) {
-                    pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
-                }
-            });
-        } catch (err) {
-            console.error("Camera Error:", err);
-            alert("Please allow camera access to broadcast.");
+            db.ref("calls/active/answer").on("value", snap => { if (snap.val() && !pc.currentRemoteDescription) pc.setRemoteDescription(new RTCSessionDescription(snap.val())); });
+            db.ref("calls/active/touristCandidates").on("child_added", snap => { if (snap.val()) pc.addIceCandidate(new RTCIceCandidate(snap.val())); });
         }
-    }
-    initApp();
-</script>
+        initApp();
+    </script>
+</body>
+</html>
