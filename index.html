@@ -5,70 +5,159 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TOUR FROM HOME</title>
     <style>
+        /* Loading clean typography identical to mockup */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;700&display=swap');
 
         body, html {
-            margin: 0; padding: 0; height: 100%; width: 100%;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
             font-family: 'Inter', sans-serif;
             background-color: #000;
-            color: #fff; overflow: hidden;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
-        #bg {
+        /* 1. CINEMATIC BACKGROUND IMAGE */
+        #bg-image {
             position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            /* THE FIX: Explicit current-directory path */
-            background-image: url('./logo.png'); 
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* Pulling background.jpg */
+            background-image: url('background.jpg');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            z-index: -1;
+            z-index: -2; /* Background layer */
         }
 
+        /* 2. ATMOSPHERIC OVERLAY (The subtle dark Starlink wash) */
+        #bg-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* Tints image for readability, matching image_0.png */
+            background: linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.8) 100%);
+            z-index: -1; /* Above image, below content */
+        }
+
+        /* MAIN CONTENT CONTAINERS */
         .hero {
             height: 100vh;
-            display: flex; flex-direction: column;
-            justify-content: center; align-items: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start; /* Title is near top as in mockup */
+            align-items: center;
             text-align: center;
-            /* Starlink style dark wash */
-            background: linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.8) 100%);
+            padding-top: 100px; /* Space for the top title */
+            z-index: 1;
         }
 
+        /* 3. CENTER COMPASS LOGO */
+        .compass-logo {
+            /* Pulling logo.png */
+            background-image: url('logo.png');
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            height: 70px; /* Small detail top-center */
+            width: 70px;
+            margin-bottom: 200px; /* Dynamic push down to buttons */
+        }
+
+        /* TYPOGRAPHY */
         .hero h1 {
-            font-size: clamp(2rem, 7vw, 4rem);
-            font-weight: 200; letter-spacing: 15px;
-            margin-bottom: 5px; text-transform: uppercase;
+            font-size: clamp(2.5rem, 8vw, 4rem); /* Responsive typography */
+            font-weight: 200; /* Ultra-thin, luxurious feel */
+            letter-spacing: 12px; /* Heavy kerning matching mockup */
+            margin-bottom: 10px;
+            text-transform: uppercase;
         }
 
         .hero p {
-            font-size: 0.9rem; letter-spacing: 6px;
+            font-size: 1rem;
+            font-weight: 400;
+            letter-spacing: 4px; /* Tagline also heavily spaced */
             color: rgba(255, 255, 255, 0.7);
-            margin-bottom: 60px; text-transform: uppercase;
+            margin-bottom: 70px;
+            text-transform: uppercase;
         }
 
-        .btn-group { display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 320px; }
+        /* ACTION BUTTONS (The subtle glassmorphism from image_0.png) */
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+            max-width: 320px;
+        }
 
         .btn {
-            padding: 20px 0; font-size: 0.75rem; font-weight: 700;
-            letter-spacing: 3px; text-transform: uppercase;
-            text-decoration: none; color: #fff;
-            border: 1px solid #fff; transition: 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+            position: relative;
+            padding: 20px 0;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 3px; /* Wide letters inside buttons */
+            text-transform: uppercase;
+            text-decoration: none;
+            color: #fff;
+            /* Thin white border, transparent background */
+            border: 1px solid #fff;
+            background: transparent;
+            transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            overflow: hidden;
             text-align: center;
         }
 
-        .btn:hover { background-color: #fff; color: #000; }
+        /* BUTTON INTERACTION */
+        .btn:hover {
+            background-color: #fff; /* Fills with white on hover */
+            color: #000;
+            transform: translateY(-2px);
+        }
+
+        /* FOOTER DETAILS */
+        .footer-note {
+            position: absolute;
+            bottom: 40px;
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.4); /* Very subtle footer text */
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
     </style>
 </head>
 <body>
-    <div id="bg"></div>
+
+    <div id="bg-image"></div>
+    
+    <div id="bg-overlay"></div>
+
     <div class="hero">
+        
+        <div class="compass-logo"></div>
+        
         <h1>Tour From Home</h1>
-        <p>Global Remote Exploration</p>
+        <p>Explore the world in real-time</p>
+
         <div class="btn-group">
-            <a href="Tour.html" class="btn">Start Mission</a>
-            <a href="Tourist.html" class="btn">Join Mission</a>
+            <a href="Tour.html" class="btn">Host a Tour (Guide Console)</a>
+            <a href="Tourist.html" class="btn">Join a Mission (Tourist View)</a>
+        </div>
+
+        <div class="footer-note">
+            Syncing with Global Satellites // OmniSync System 1.0
         </div>
     </div>
+
 </body>
 </html>
