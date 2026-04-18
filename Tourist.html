@@ -7,7 +7,6 @@
     <style>
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; color: white; font-family: 'Inter', sans-serif; }
         
-        /* LAYOUT */
         #container { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
         #street-view { flex: 1; min-width: 100px; background: #111; }
         
@@ -36,14 +35,10 @@
             backdrop-filter: blur(5px);
         }
         #messages { flex: 1; overflow-y: auto; padding: 15px; font-size: 14px; display: flex; flex-direction: column; gap: 8px; }
-        .msg { line-height: 1.4; }
         .msg b { color: #FFD700; margin-right: 5px; }
         #chat-input-area { display: flex; border-top: 1px solid #444; padding: 5px; }
-        #chat-input { 
-            flex: 1; background: transparent; border: none; color: white; 
-            padding: 10px; outline: none; font-family: inherit;
-        }
-        #send-btn { background: #FFD700; border: none; padding: 0 15px; border-radius: 8px; cursor: pointer; font-weight: bold; color: black; }
+        #chat-input { flex: 1; background: transparent; border: none; color: white; padding: 10px; outline: none; }
+        #send-btn { background: #FFD700; border: none; padding: 0 15px; border-radius: 8px; cursor: pointer; font-weight: bold; }
 
         /* CONTROL OVERLAY */
         #overlay-ui {
@@ -83,7 +78,6 @@
     </div>
 
     <script>
-        // --- CONFIG ---
         const firebaseConfig = {
             apiKey: "AIzaSyBuGMqqCArrL6vKWGRZkgDtn3tvt9wSpoo",
             authDomain: "virtual-tour-platform-492518.firebaseapp.com",
@@ -132,75 +126,25 @@
                 icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2 }
             });
 
+            // THE SNAP ENGINE
             db.ref("tour/guide").on("value", (snap) => {
                 const data = snap.val();
-                if (!data) return;
+                if (!data || !panorama) return;
+                
+                // Update Marker
                 guideMarker.setPosition(data.position);
                 const icon = guideMarker.getIcon();
                 icon.rotation = data.pov.heading;
                 guideMarker.setIcon(icon);
+
+                // Force Snap if Tethered
                 if (isTethered) {
-                    panorama.setPosition(data.position);
-                    panorama.setPov(data.pov);
-                    map.setCenter(data.position);
-                }
-            });
-        }
-
-        // --- CHAT LOGIC ---
-        function sendMessage() {
-            const input = document.getElementById('chat-input');
-            if (!input.value.trim()) return;
-            db.ref("chat").push({
-                sender: "Tourist",
-                text: input.value,
-                timestamp: Date.now()
-            });
-            input.value = "";
-        }
-
-        db.ref("chat").limitToLast(15).on("child_added", (snap) => {
-            const data = snap.val();
-            const msgList = document.getElementById("messages");
-            const div = document.createElement("div");
-            div.className = "msg";
-            div.innerHTML = `<b>${data.sender}:</b> ${data.text}`;
-            msgList.appendChild(div);
-            msgList.scrollTop = msgList.scrollHeight;
-        });
-
-        // --- VIDEO LOGIC ---
-        async function joinVideo() {
-            document.getElementById('joinBtn').innerText = "CONNECTING...";
-            const vid = document.getElementById('remoteVideo');
-            const queue = [];
-
-            pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-
-            pc.ontrack = (e) => {
-                vid.srcObject = e.streams[0];
-                vid.onloadedmetadata = () => {
-                    vid.muted = false;
-                    vid.play().then(() => document.getElementById('joinBtn').style.display='none')
-                    .catch(() => { vid.muted = true; vid.play(); });
-                };
-            };
-
-            pc.onicecandidate = (e) => {
-                if (e.candidate) db.ref("calls/active/touristCandidates").push(e.candidate.toJSON());
-            };
-
-            db.ref("calls/active/guideCandidates").on("child_added", (snap) => {
-                if (snap.val()) pc.remoteDescription ? pc.addIceCandidate(new RTCIceCandidate(snap.val())) : queue.push(snap.val());
-            });
-
-            db.ref("calls/active/offer").once("value", async (snap) => {
-                if (snap.val()) {
-                    await pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
-                    const ans = await pc.createAnswer();
-                    await pc.setLocalDescription(ans);
-                    db.ref("calls/active/answer").set({ type: ans.type, sdp: ans.sdp });
-                    while(queue.length) pc.addIceCandidate(new RTCIceCandidate(queue.shift()));
+                    // Use setOptions to update everything in one hardware cycle
+                    panorama.setOptions({
+                        position: data.position,
+                        pov: data.pov
+                    });
+                    map.panTo(data.position);
                 }
             });
         }
@@ -209,9 +153,33 @@
             isTethered = !isTethered;
             document.getElementById("tetherBtn").innerText = isTethered ? "Untether" : "Tether Me";
             document.getElementById("status-text").innerText = isTethered ? "TETHERED" : "ROAMING";
+            if(isTethered) {
+                db.ref("tour/guide").once("value", s => {
+                    const d = s.val();
+                    if(d) panorama.setOptions({ position: d.position, pov: d.pov });
+                });
+            }
         }
 
-        init();
-    </script>
-</body>
-</html>
+        // --- CHAT ---
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            if (!input.value.trim()) return;
+            db.ref("chat").push({ sender: "Tourist", text: input.value, timestamp: Date.now() });
+            input.value = "";
+        }
+
+        db.ref("chat").limitToLast(15).on("child_added", (snap) => {
+            const data = snap.val();
+            const div = document.createElement("div");
+            div.innerHTML = `<b>${data.sender}:</b> ${data.text}`;
+            document.getElementById("messages").appendChild(div);
+            document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+        });
+
+        // --- VIDEO (CANDIDATE QUEUE FIXED) ---
+        async function joinVideo() {
+            document.getElementById('joinBtn').innerText = "CONNECTING...";
+            const vid = document.getElementById('remoteVideo');
+            const queue = [];
+            pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.
