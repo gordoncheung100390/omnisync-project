@@ -8,46 +8,43 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;700&display=swap');
 
         body, html {
-            margin: 0; padding: 0;
-            width: 100%; height: 100%;
-            background-color: #000;
-            color: #fff; font-family: 'Inter', sans-serif;
-            overflow: hidden;
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            font-family: 'Inter', sans-serif;
+            background-color: #000; color: #fff; overflow: hidden;
         }
 
         /* THE BACKGROUND LAYER */
-        #earth-layer {
+        #bg-layer {
             position: fixed;
             top: 0; left: 0;
             width: 100vw; height: 100vh;
-            /* Using the dot-slash prefix to force local pathing */
-            background-image: url('./background.jpg'); 
+            /* Added ?v=1 to force GitHub to refresh the file */
+            background-image: url('background.jpg?v=1'); 
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
             z-index: -2;
         }
 
-        /* OVERLAY FOR CONTRAST */
-        #overlay-layer {
+        #overlay {
             position: fixed;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.8) 100%);
+            background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.8) 100%);
             z-index: -1;
         }
 
-        .main-ui {
+        .container {
             height: 100vh;
             display: flex; flex-direction: column;
             justify-content: center; align-items: center;
             text-align: center;
         }
 
-        /* COMPASS LOGO (Confirmed working) */
+        /* LOGO (You said this works) */
         .compass {
             width: 80px; height: 80px;
-            background-image: url('./logo.png');
+            background-image: url('logo.png');
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
@@ -64,10 +61,10 @@
 </head>
 <body>
 
-    <div id="earth-layer"></div>
-    <div id="overlay-layer"></div>
+    <div id="bg-layer"></div>
+    <div id="overlay"></div>
 
-    <div class="main-ui">
+    <div class="container">
         <div class="compass"></div>
         <h1>Tour From Home</h1>
         <p>Explore the world in real-time</p>
