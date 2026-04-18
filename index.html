@@ -10,29 +10,28 @@
         body, html {
             margin: 0; padding: 0; height: 100%; width: 100%;
             font-family: 'Inter', sans-serif;
-            background-color: #050505; /* Fallback Color */
+            background-color: #000;
             color: #fff; overflow: hidden;
         }
 
-        /* THE BACKGROUND IMAGE LAYER */
+        /* FORCE BACKGROUND TO APPEAR */
         #bg-layer {
             position: fixed;
             top: 0; left: 0;
-            width: 100%; height: 100%;
-            /* Ensure the file you uploaded is named exactly background.jpg */
-            background-image: url('background.jpg'); 
+            width: 100vw; height: 100vh;
+            /* Added ./ to be ultra-specific about the folder */
+            background-image: url('./background.jpg'); 
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
             z-index: -2;
         }
 
-        /* THE CINEMATIC SHADOW OVERLAY */
         #overlay {
             position: fixed;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.8) 100%);
+            background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.8) 100%);
             z-index: -1;
         }
 
@@ -43,26 +42,25 @@
             text-align: center;
         }
 
-        /* THE COMPASS LOGO AT THE TOP */
         .compass {
             width: 80px; height: 80px;
-            background-image: url('logo.png'); /* Ensure file is logo.png */
+            background-image: url('./logo.png');
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
             margin-bottom: 40px;
-            opacity: 0.9;
         }
 
         h1 {
             font-size: clamp(2rem, 8vw, 4.5rem);
             font-weight: 200; letter-spacing: 15px;
             text-transform: uppercase; margin: 0;
+            text-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
 
         p {
             font-size: 0.9rem; letter-spacing: 6px;
-            color: rgba(255,255,255,0.6);
+            color: rgba(255,255,255,0.8);
             text-transform: uppercase; margin: 15px 0 60px 0;
         }
 
@@ -72,20 +70,11 @@
             padding: 18px 0; font-size: 0.75rem; font-weight: 700;
             letter-spacing: 3px; text-transform: uppercase;
             text-decoration: none; color: #fff;
-            border: 1px solid rgba(255,255,255,0.4);
-            transition: 0.4s ease;
+            border: 1px solid #fff;
+            transition: 0.3s ease;
         }
 
-        .btn:hover {
-            background: #fff; color: #000;
-            border-color: #fff;
-        }
-
-        .footer {
-            position: absolute; bottom: 30px;
-            font-size: 0.6rem; letter-spacing: 4px;
-            color: rgba(255,255,255,0.3); text-transform: uppercase;
-        }
+        .btn:hover { background: #fff; color: #000; }
     </style>
 </head>
 <body>
@@ -102,8 +91,6 @@
             <a href="Tour.html" class="btn">Host a Tour</a>
             <a href="Tourist.html" class="btn">Join a Mission</a>
         </div>
-
-        <div class="footer">Orbital Sync Active // OmniSync 1.0</div>
     </div>
 
 </body>
