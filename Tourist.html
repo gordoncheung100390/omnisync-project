@@ -5,54 +5,72 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; color: white; font-family: sans-serif; }
-        #main-layout { display: flex; height: 100vh; width: 100vw; }
-        #street-view { flex: 1; background: #111; }
-        #map-2d { width: 30%; background: #1a1a1a; border-left: 1px solid #333; }
-        #resizer { width: 12px; cursor: col-resize; background: #222; z-index: 10; border-left: 1px solid #444; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; color: white; font-family: 'Inter', sans-serif; }
+        
+        /* THE FLEX LAYOUT */
+        #container { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
+        
+        #street-view { flex: 1; min-width: 100px; background: #111; }
+        
+        /* THE MOVABLE SPLIT LINE */
+        #resizer {
+            width: 10px;
+            background: #222;
+            cursor: col-resize;
+            z-index: 10;
+            border-left: 1px solid #333;
+            border-right: 1px solid #333;
+            transition: background 0.2s;
+        }
         #resizer:hover { background: #FFD700; }
-        
-        #vid-box { 
-            position: absolute; top: 20px; right: 20px; width: 300px; aspect-ratio: 16/9; 
-            background: #111; border: 2px solid #FFD700; border-radius: 12px; z-index: 1000; overflow: hidden; 
-        }
-        video { width: 100%; height: 100%; object-fit: cover; background: #000; }
-        #vid-status { position: absolute; top: 5px; left: 10px; font-size: 11px; color: #FFD700; z-index: 1001; }
 
-        #controls { 
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); 
-            z-index: 100; background: rgba(0,0,0,0.9); padding: 12px 25px; border-radius: 50px; 
-            border: 1px solid #FFD700; display: flex; gap: 15px;
+        #map-2d { 
+            width: 25%; /* Default width */
+            min-width: 100px;
+            background: #1a1a1a;
         }
-        button { background: #FFD700; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; color: black; }
         
-        .guide-arrow {
-            width: 0; height: 0; 
-            border-left: 10px solid transparent; border-right: 10px solid transparent;
-            border-bottom: 25px solid red; filter: drop-shadow(0 0 3px white);
+        /* VIDEO CONTAINER */
+        #guide-video-container {
+            position: absolute; top: 20px; right: 20px;
+            width: 260px; aspect-ratio: 16/9;
+            background: #111; border: 2px solid #FFD700; border-radius: 12px;
+            z-index: 1000; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
+        video { width: 100%; height: 100%; object-fit: cover; }
+
+        /* CONTROL OVERLAY */
+        #overlay-ui {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 100; display: flex; align-items: center; gap: 15px;
+            background: rgba(0,0,0,0.9); padding: 12px 25px; border-radius: 50px; border: 1px solid #FFD700;
+        }
+        button { background: #FFD700; border: none; padding: 12px 24px; border-radius: 20px; font-weight: bold; cursor: pointer; color: black; transition: 0.2s; }
+        button:active { transform: scale(0.95); }
+        button.off { background: #444; color: #ccc; }
+        #status-text { font-size: 11px; font-weight: bold; color: #FFD700; min-width: 90px; text-align: center; text-transform: uppercase; }
     </style>
 </head>
 <body>
 
-    <div id="vid-box">
-        <div id="vid-status">SIGNAL: IDLE</div>
+    <div id="guide-video-container">
         <video id="remoteVideo" autoplay playsinline muted></video>
     </div>
 
-    <div id="main-layout">
+    <div id="container">
         <div id="street-view"></div>
         <div id="resizer"></div>
         <div id="map-2d"></div>
     </div>
 
-    <div id="controls">
+    <div id="overlay-ui">
+        <span id="status-text">Tethered</span>
         <button id="tetherBtn" onclick="toggleTether()">Untether</button>
-        <button id="joinBtn" onclick="joinVideo()">JOIN LIVE TOUR</button>
-        <button id="wakeBtn" style="display:none; background:white;" onclick="forceWake()">WAKE VIDEO</button>
+        <button id="joinBtn" onclick="joinVideo()">START VIDEO & AUDIO</button>
     </div>
 
     <script>
+        // --- FIREBASE INITIALIZATION ---
         const firebaseConfig = {
             apiKey: "AIzaSyBuGMqqCArrL6vKWGRZkgDtn3tvt9wSpoo",
             authDomain: "virtual-tour-platform-492518.firebaseapp.com",
@@ -63,37 +81,60 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
+        // --- RESIZER LOGIC ---
+        const resizer = document.getElementById("resizer");
+        const rightSide = document.getElementById("map-2d");
+        let isResizing = false;
+
+        resizer.addEventListener("mousedown", () => isResizing = true);
+        window.addEventListener("mousemove", (e) => {
+            if (!isResizing) return;
+            const newWidth = window.innerWidth - e.clientX;
+            if (newWidth > 100 && newWidth < window.innerWidth - 100) {
+                rightSide.style.width = newWidth + "px";
+                if(map) google.maps.event.trigger(map, "resize");
+            }
+        });
+        window.addEventListener("mouseup", () => isResizing = false);
+
+        // --- GOOGLE MAPS LOADER ---
         (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Re-trying:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
-            key: "AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs", v: "weekly"
+            key: "AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs",
+            v: "weekly"
         });
 
-        let panorama, map, guideMarker, arrowDiv, isTethered = true, pc;
-        const statusEl = document.getElementById('vid-status');
+        let panorama, map, guideMarker, isTethered = true, pc;
 
         async function init() {
             const { Map } = await google.maps.importLibrary("maps");
             const { StreetViewPanorama } = await google.maps.importLibrary("streetView");
-            const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
-            
             const startPos = { lat: 40.7580, lng: -73.9855 };
-            panorama = new StreetViewPanorama(document.getElementById("street-view"), { position: startPos });
-            map = new Map(document.getElementById("map-2d"), { center: startPos, zoom: 17, streetViewControl: true, mapId: "4504f8b373a3ad47" });
+
+            panorama = new StreetViewPanorama(document.getElementById("street-view"), {
+                position: startPos, visible: true, addressControl: false
+            });
+
+            map = new Map(document.getElementById("map-2d"), {
+                center: startPos, zoom: 17, streetViewControl: true
+            });
+
             map.setStreetView(panorama);
 
-            arrowDiv = document.createElement('div');
-            arrowDiv.className = 'guide-arrow';
-            guideMarker = new AdvancedMarkerElement({ map: map, position: startPos, content: arrowDiv });
+            guideMarker = new google.maps.Marker({
+                position: startPos, map: map,
+                icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2 }
+            });
 
-            // --- THE SNAP & SYNC LOGIC ---
+            // Listen for Guide Sync
             db.ref("tour/guide").on("value", (snap) => {
                 const data = snap.val();
                 if (!data) return;
+                
+                guideMarker.setPosition(data.position);
+                const icon = guideMarker.getIcon();
+                icon.rotation = data.pov.heading;
+                guideMarker.setIcon(icon);
 
-                // Move the Red Arrow
-                guideMarker.position = { lat: data.position.lat, lng: data.position.lng };
-                arrowDiv.style.transform = `rotate(${data.pov.heading}deg)`;
-
-                // Move the Camera (SNAP)
                 if (isTethered) {
                     panorama.setPosition(data.position);
                     panorama.setPov(data.pov);
@@ -102,53 +143,75 @@
             });
         }
 
-        // --- THE WEBCAM ENGINE ---
+        function toggleTether() {
+            isTethered = !isTethered;
+            const btn = document.getElementById("tetherBtn");
+            const status = document.getElementById("status-text");
+
+            if (isTethered) {
+                btn.innerText = "Untether";
+                btn.classList.remove("off");
+                status.innerText = "TETHERED";
+                db.ref("tour/guide").once("value").then(s => {
+                    const d = s.val();
+                    if(d) { panorama.setPosition(d.position); panorama.setPov(d.pov); }
+                });
+            } else {
+                btn.innerText = "Tether Me";
+                btn.classList.add("off");
+                status.innerText = "ROAMING";
+            }
+        }
+
+        // --- VIDEO ENGINE ---
         async function joinVideo() {
-            statusEl.innerText = "SIGNAL: CONNECTING...";
+            document.getElementById('joinBtn').innerText = "CONNECTING...";
             const vid = document.getElementById('remoteVideo');
-            const queue = [];
+            const candidateQueue = [];
 
             pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
 
-            pc.ontrack = e => {
-                vid.srcObject = e.streams[0];
-                vid.play().then(() => {
-                    statusEl.innerText = "SIGNAL: LIVE";
-                    document.getElementById('wakeBtn').style.display = 'none';
-                }).catch(() => {
-                    statusEl.innerText = "SIGNAL: BLOCKED BY BROWSER";
-                    document.getElementById('wakeBtn').style.display = 'block';
-                });
+            pc.ontrack = (event) => {
+                vid.srcObject = event.streams[0];
+                vid.onloadedmetadata = () => {
+                    vid.muted = false; // Try unmuting
+                    vid.play().then(() => {
+                        document.getElementById('joinBtn').style.display = 'none';
+                    }).catch(e => {
+                        console.warn("Autoplay blocked. User click required.");
+                        vid.muted = true;
+                        vid.play();
+                    });
+                };
             };
 
-            pc.onicecandidate = e => e.candidate && db.ref("calls/active/touristCandidates").push(e.candidate.toJSON());
+            pc.onicecandidate = (e) => {
+                if (e.candidate) db.ref("calls/active/touristCandidates").push(e.candidate.toJSON());
+            };
 
-            db.ref("calls/active/offer").on("value", async s => {
-                const offer = s.val();
-                if (offer && pc.signalingState !== "stable") {
-                    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-                    const ans = await pc.createAnswer();
-                    await pc.setLocalDescription(ans);
-                    db.ref("calls/active/answer").set({ type: ans.type, sdp: ans.sdp });
-                    while(queue.length) pc.addIceCandidate(new RTCIceCandidate(queue.shift()));
+            // Queue candidates until offer is processed
+            db.ref("calls/active/guideCandidates").on("child_added", (snap) => {
+                const cand = snap.val();
+                if (cand) {
+                    if (pc.remoteDescription) pc.addIceCandidate(new RTCIceCandidate(cand));
+                    else candidateQueue.push(cand);
                 }
             });
 
-            db.ref("calls/active/guideCandidates").on("child_added", s => {
-                if(s.val()) pc.remoteDescription ? pc.addIceCandidate(new RTCIceCandidate(s.val())) : queue.push(s.val());
+            db.ref("calls/active/offer").once("value", async (snap) => {
+                const offer = snap.val();
+                if (offer) {
+                    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    db.ref("calls/active/answer").set({ type: answer.type, sdp: answer.sdp });
+                    
+                    // Flush candidates
+                    while(candidateQueue.length) {
+                        pc.addIceCandidate(new RTCIceCandidate(candidateQueue.shift()));
+                    }
+                }
             });
-        }
-
-        function forceWake() {
-            const vid = document.getElementById('remoteVideo');
-            vid.muted = false;
-            vid.play();
-            document.getElementById('wakeBtn').style.display = 'none';
-        }
-
-        function toggleTether() {
-            isTethered = !isTethered;
-            document.getElementById("tetherBtn").innerText = isTethered ? "Untether" : "Tether Me";
         }
 
         init();
