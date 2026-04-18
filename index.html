@@ -3,131 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TFH | Tour From Home</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;900&display=swap" rel="stylesheet">
+    <title>OMNISYNC | VIRTUAL TOURS</title>
     <style>
-        body, html {
-            margin: 0; padding: 0; height: 100%; width: 100%;
-            font-family: 'Inter', sans-serif;
-            background-color: #000;
-            color: white;
-            overflow: hidden;
-        }
-
-        /* LAYER 1: THE BACKGROUND */
-        .bg-layer {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background-image: url('logo.png');
-            background-size: cover;
-            background-position: center;
-            z-index: 1;
-        }
-
-        /* LAYER 2: THE UI CONTAINER */
-        .ui-container {
-            position: relative;
-            z-index: 10;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 40px 60px;
-            box-sizing: border-box;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 50%, rgba(0,0,0,0.7) 100%);
-        }
-
-        /* TOP LEFT BRANDING */
-        .header {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        .logo-main {
-            margin: 0; font-size: 2.5rem; font-weight: 900; letter-spacing: -1px;
-            background: linear-gradient(to right, #fff, #FFD700);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        }
-        .logo-sub {
-            font-size: 0.9rem; font-weight: 300; letter-spacing: 4px;
-            color: rgba(255,255,255,0.7);
-            text-transform: uppercase;
-            border-left: 1px solid rgba(255,255,255,0.3);
-            padding-left: 20px;
-            margin-top: 5px;
-        }
-
-        /* CENTER SLOGAN */
-        .hero {
-            text-align: center;
-        }
-        .slogan {
-            font-size: clamp(2rem, 6vw, 4rem);
-            font-weight: 900;
-            text-transform: uppercase;
-            line-height: 1;
-            margin: 0 auto;
-            letter-spacing: -2px;
-            max-width: 1000px;
-        }
-
-        /* BOTTOM ACTIONS */
-        .actions {
+        body {
+            margin: 0;
+            padding: 0;
             display: flex;
             justify-content: center;
-            gap: 25px;
-            padding-bottom: 40px;
-        }
-        .btn {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 20px 40px;
-            border-radius: 12px;
-            text-decoration: none;
+            align-items: center;
+            height: 100vh;
+            background: radial-gradient(circle, #1a1a1a 0%, #000 100%);
             color: white;
-            text-align: center;
-            transition: all 0.3s ease;
-            min-width: 200px;
+            font-family: 'Inter', sans-serif;
         }
-        .btn:hover {
-            background: rgba(255, 215, 0, 0.2);
-            border-color: #FFD700;
-            transform: translateY(-5px);
-        }
-        .btn h2 { margin: 0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; }
-        .btn p { margin: 5px 0 0 0; font-size: 0.7rem; opacity: 0.7; }
 
-        /* Mobile Fix */
-        @media (max-width: 768px) {
-            .logo-sub { display: none; }
-            .actions { flex-direction: column; align-items: center; }
-            .ui-container { padding: 30px; }
+        .lobby-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 50px;
+            border-radius: 20px;
+            border: 1px solid #333;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            letter-spacing: -1px;
+        }
+
+        h1 span { color: #FFD700; }
+
+        p { color: #888; margin-bottom: 40px; }
+
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .btn {
+            text-decoration: none;
+            padding: 18px 40px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        /* THE GUIDE (Master Console) */
+        .btn-guide {
+            background: #FFD700;
+            color: #000;
+        }
+
+        .btn-guide:hover {
+            background: #fff;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(255, 215, 0, 0.3);
+        }
+
+        /* THE TOURIST (Viewer) */
+        .btn-tourist {
+            background: transparent;
+            color: #FFD700;
+            border: 2px solid #FFD700;
+        }
+
+        .btn-tourist:hover {
+            background: rgba(255, 215, 0, 0.1);
+            transform: translateY(-3px);
+        }
+
+        .note {
+            margin-top: 30px;
+            font-size: 0.8rem;
+            color: #555;
         }
     </style>
 </head>
 <body>
 
-    <div class="bg-layer"></div>
+    <div class="lobby-card">
+        <h1>OMNI<span>SYNC</span></h1>
+        <p>Real-time street level exploration</p>
 
-    <div class="ui-container">
-        
-        <div class="header">
-            <h1 class="logo-main">TFH</h1>
-            <div class="logo-sub">Travel From Home</div>
+        <div class="btn-group">
+            <a href="tour.html" class="btn btn-guide">Start as Guide (Host)</a>
+            <a href="tourist.html" class="btn btn-tourist">Join as Tourist (Guest)</a>
         </div>
 
-        <div class="hero">
-            <h2 class="slogan">The world's local stories,<br>delivered to your home screen.</h2>
+        <div class="note">
+            Starting as a Guide will automatically reset the session chat history.
         </div>
+    </div>
 
-        <div class="actions">
-            <a href="Tour.html" class="btn">
-                <h2>Lead a TFH</h2>
-                <p>Start Guide Session</p>
-            </a>
-            <a href="Tourist.html" class="btn">
-                <h2>Join a TFH</h2>
-                <p>Sync to Live Guide</p
+</body>
+</html>
