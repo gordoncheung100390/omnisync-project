@@ -3,76 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TOUR FROM HOME</title>
+    <title>TFH | Tour From Home</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;900&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;700&display=swap');
-
         body, html {
-            margin: 0; padding: 0; width: 100%; height: 100%;
+            margin: 0; padding: 0; height: 100%; width: 100%;
             font-family: 'Inter', sans-serif;
-            background-color: #000; color: #fff; overflow: hidden;
+            background-color: #000;
+            color: white;
+            overflow: hidden;
         }
 
-        /* THE BACKGROUND LAYER */
-        #bg-layer {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            /* Added ?v=1 to force GitHub to refresh the file */
-            background-image: url('background.jpg?v=1'); 
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            z-index: -2;
-        }
-
-        #overlay {
+        /* LAYER 1: THE BACKGROUND */
+        .bg-layer {
             position: fixed;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.8) 100%);
-            z-index: -1;
+            background-image: url('logo.png');
+            background-size: cover;
+            background-position: center;
+            z-index: 1;
         }
 
-        .container {
+        /* LAYER 2: THE UI CONTAINER */
+        .ui-container {
+            position: relative;
+            z-index: 10;
             height: 100vh;
-            display: flex; flex-direction: column;
-            justify-content: center; align-items: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 40px 60px;
+            box-sizing: border-box;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 50%, rgba(0,0,0,0.7) 100%);
+        }
+
+        /* TOP LEFT BRANDING */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .logo-main {
+            margin: 0; font-size: 2.5rem; font-weight: 900; letter-spacing: -1px;
+            background: linear-gradient(to right, #fff, #FFD700);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .logo-sub {
+            font-size: 0.9rem; font-weight: 300; letter-spacing: 4px;
+            color: rgba(255,255,255,0.7);
+            text-transform: uppercase;
+            border-left: 1px solid rgba(255,255,255,0.3);
+            padding-left: 20px;
+            margin-top: 5px;
+        }
+
+        /* CENTER SLOGAN */
+        .hero {
             text-align: center;
         }
-
-        /* LOGO (You said this works) */
-        .compass {
-            width: 80px; height: 80px;
-            background-image: url('logo.png');
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-            margin-bottom: 30px;
+        .slogan {
+            font-size: clamp(2rem, 6vw, 4rem);
+            font-weight: 900;
+            text-transform: uppercase;
+            line-height: 1;
+            margin: 0 auto;
+            letter-spacing: -2px;
+            max-width: 1000px;
         }
 
-        h1 { font-size: clamp(2rem, 8vw, 4.5rem); font-weight: 200; letter-spacing: 15px; text-transform: uppercase; margin: 0; }
-        p { font-size: 0.8rem; letter-spacing: 5px; color: rgba(255,255,255,0.6); text-transform: uppercase; margin: 15px 0 60px 0; }
+        /* BOTTOM ACTIONS */
+        .actions {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            padding-bottom: 40px;
+        }
+        .btn {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 20px 40px;
+            border-radius: 12px;
+            text-decoration: none;
+            color: white;
+            text-align: center;
+            transition: all 0.3s ease;
+            min-width: 200px;
+        }
+        .btn:hover {
+            background: rgba(255, 215, 0, 0.2);
+            border-color: #FFD700;
+            transform: translateY(-5px);
+        }
+        .btn h2 { margin: 0; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; }
+        .btn p { margin: 5px 0 0 0; font-size: 0.7rem; opacity: 0.7; }
 
-        .btn-group { display: flex; flex-direction: column; gap: 15px; width: 300px; }
-        .btn { padding: 18px 0; font-size: 0.75rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; text-decoration: none; color: #fff; border: 1px solid rgba(255,255,255,0.5); transition: 0.3s; }
-        .btn:hover { background: #fff; color: #000; }
+        /* Mobile Fix */
+        @media (max-width: 768px) {
+            .logo-sub { display: none; }
+            .actions { flex-direction: column; align-items: center; }
+            .ui-container { padding: 30px; }
+        }
     </style>
 </head>
 <body>
 
-    <div id="bg-layer"></div>
-    <div id="overlay"></div>
+    <div class="bg-layer"></div>
 
-    <div class="container">
-        <div class="compass"></div>
-        <h1>Tour From Home</h1>
-        <p>Explore the world in real-time</p>
-        <div class="btn-group">
-            <a href="Tour.html" class="btn">Host a Tour</a>
-            <a href="Tourist.html" class="btn">Join a Mission</a>
+    <div class="ui-container">
+        
+        <div class="header">
+            <h1 class="logo-main">TFH</h1>
+            <div class="logo-sub">Travel From Home</div>
         </div>
-    </div>
 
-</body>
-</html>
+        <div class="hero">
+            <h2 class="slogan">The world's local stories,<br>delivered to your home screen.</h2>
+        </div>
+
+        <div class="actions">
+            <a href="Tour.html" class="btn">
+                <h2>Lead a TFH</h2>
+                <p>Start Guide Session</p>
+            </a>
+            <a href="Tourist.html" class="btn">
+                <h2>Join a TFH</h2>
+                <p>Sync to Live Guide</p
