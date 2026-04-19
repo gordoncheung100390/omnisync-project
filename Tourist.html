@@ -65,13 +65,11 @@
             const { StreetViewPanorama } = await google.maps.importLibrary("streetView");
             const startPos = { lat: 40.7580, lng: -73.9855 };
             
-            // 1. FIXED PEGEMAN: Added streetViewControl and addressControl
             panorama = new StreetViewPanorama(document.getElementById("street-view"), { 
                 position: startPos, 
                 visible: true, 
                 streetViewControl: true, 
-                addressControl: true,
-                panControl: true
+                addressControl: true
             });
 
             map = new Map(document.getElementById("map-2d"), { 
@@ -81,7 +79,7 @@
             });
             map.setStreetView(panorama);
 
-            // 2. FIXED RESIZER
+            // Resizer
             const resizer = document.getElementById("resizer");
             let isResizing = false;
             resizer.addEventListener("mousedown", () => isResizing = true);
@@ -95,88 +93,96 @@
             });
             window.addEventListener("mouseup", () => isResizing = false);
 
-            // 3. FIXED GUIDE ARROW: Initialized with rotation 0
+            // Red Arrow for Guide
             guideMarker = new google.maps.Marker({ 
                 position: startPos, 
                 map: map, 
                 icon: { 
                     path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, 
-                    scale: 6, 
-                    fillColor: "#F00", 
+                    scale: 7, 
+                    fillColor: "#FF0000", 
                     fillOpacity: 1, 
-                    strokeColor: "#FFF", 
+                    strokeColor: "#FFFFFF", 
                     strokeWeight: 2,
                     rotation: 0 
                 } 
             });
 
+            // Send my position to Guide (Blue Dot logic)
             panorama.addListener("position_changed", () => {
                 const pos = panorama.getPosition();
                 db.ref("tour/tourists/" + myId).set({ lat: pos.lat(), lng: pos.lng() });
             });
 
+            // THE TETHER LISTENER
             db.ref("tour/guide").on("value", (snap) => {
                 const data = snap.val();
-                if (data) {
-                    guideMarker.setPosition(data.position);
+                if (!data) return;
+
+                // Always update the Red Arrow on the map
+                guideMarker.setPosition(data.position);
+                if (data.pov) {
                     let icon = guideMarker.getIcon();
-                    icon.rotation = data.pov ? data.pov.heading : 0;
+                    icon.rotation = data.pov.heading;
                     guideMarker.setIcon(icon);
-                    
-                    if (isTethered) {
+                }
+                
+                // If tethered, force the Street View to follow
+                if (isTethered) {
+                    panorama.setPosition(data.position);
+                    if (data.pov) panorama.setPov(data.pov);
+                    map.panTo(data.position);
+                }
+            });
+        }
+
+        // FIXED SNAP BACK FUNCTION
+        function toggleTether() {
+            isTethered = !isTethered;
+            const statusText = document.getElementById("status-text");
+            const btn = document.getElementById("tetherBtn");
+
+            if (isTethered) {
+                statusText.innerText = "TETHERED";
+                btn.innerText = "Untether";
+                
+                // CRITICAL: Instant snap back to guide's current position
+                db.ref("tour/guide").once("value", (snap) => {
+                    const data = snap.val();
+                    if (data) {
                         panorama.setPosition(data.position);
                         if (data.pov) panorama.setPov(data.pov);
                         map.panTo(data.position);
                     }
-                }
-            });
+                });
+            } else {
+                statusText.innerText = "ROAMING";
+                btn.innerText = "Tether Me";
+            }
         }
 
         async function joinVideo() {
-            // Force Audio Context for Chrome
-            if (window.AudioContext || window.webkitAudioContext) {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                audioCtx.resume();
-            }
-
             pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-            
-            // Handle incoming track
             pc.ontrack = (e) => { 
                 const remoteVid = document.getElementById('remoteVideo');
                 remoteVid.srcObject = e.streams[0];
-                remoteVid.play().catch(err => console.error("Autoplay blocked:", err));
+                remoteVid.play();
                 document.getElementById('joinBtn').innerText = "LIVE";
             };
-
-            // Send my ICE candidates to Guide
             pc.onicecandidate = (e) => { 
                 if (e.candidate) db.ref("calls/active/touristCandidates").push(e.candidate.toJSON()); 
             };
-
-            // Listen for Guide's ICE candidates
             db.ref("calls/active/guideCandidates").on("child_added", snap => {
                 if (snap.val()) pc.addIceCandidate(new RTCIceCandidate(snap.val()));
             });
-
-            // Handle the Offer/Answer
             db.ref("calls/active/offer").once("value", async snap => {
-                if (!snap.val()) {
-                    alert("No guide broadcast found. Guide must click START MISSION first.");
-                    return;
+                if (snap.val()) {
+                    await pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
+                    const ans = await pc.createAnswer();
+                    await pc.setLocalDescription(ans);
+                    db.ref("calls/active/answer").set({ type: ans.type, sdp: ans.sdp });
                 }
-                await pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
-                const ans = await pc.createAnswer();
-                await pc.setLocalDescription(ans);
-                db.ref("calls/active/answer").set({ type: ans.type, sdp: ans.sdp });
             });
-        }
-
-        function toggleTether() {
-            isTethered = !isTethered;
-            document.getElementById("status-text").innerText = isTethered ? "TETHERED" : "ROAMING";
-            document.getElementById("tetherBtn").innerText = isTethered ? "Untether" : "Tether Me";
-            if(isTethered) db.ref("tour/guide").once("value", s => { if(s.val()) panorama.setPosition(s.val().position); });
         }
 
         function sendMessage() {
