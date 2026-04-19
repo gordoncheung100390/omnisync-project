@@ -5,39 +5,48 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;700&display=swap');
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; font-family: 'Inter', sans-serif; background: #000; color: #fff; }
-        #container { display: flex; height: 100vh; width: 100vw; }
-        #street-view { flex: 1; background: #111; height: 100%; }
-        #map-2d { width: 30%; background: #1a1a1a; height: 100%; }
-        #resizer { width: 6px; background: #222; cursor: col-resize; z-index: 10; border-left: 1px solid #444; }
-        #search-container { position: absolute; top: 20px; left: 20px; z-index: 1000; width: 350px; display: flex; flex-direction: column; gap: 10px; }
-        #pac-input { width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.8); color: white; outline: none; backdrop-filter: blur(10px); box-sizing: border-box; }
-        .ctrl-btn { background: #fff; color: #000; border: none; padding: 10px; font-weight: 700; cursor: pointer; text-transform: uppercase; font-size: 10px; }
-        #reset-btn { background: #ff4444; color: white; }
-        #video-container { position: absolute; bottom: 20px; right: 20px; width: 220px; aspect-ratio: 16/9; border: 1px solid #fff; background: #000; z-index: 2000; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; font-family: 'Inter', sans-serif; background: #111; color: #fff; }
+        #container { display: flex; height: 100vh; width: 100vw; position: relative; }
+        #street-view { flex: 1; background: #000; }
+        #map-2d { width: 30%; background: #222; border-left: 1px solid #444; }
+        #resizer { width: 8px; background: #333; cursor: col-resize; z-index: 10; position: relative; }
+        #resizer:hover { background: #555; }
+        #ui-layer { position: absolute; top: 20px; left: 20px; z-index: 1000; width: 300px; }
+        .ctrl-panel { background: rgba(0,0,0,0.9); padding: 15px; border: 1px solid #444; backdrop-filter: blur(10px); }
+        #pac-input { width: 100%; padding: 10px; background: #000; border: 1px solid #555; color: #fff; margin-bottom: 10px; box-sizing: border-box; }
+        .btn { width: 100%; padding: 10px; border: none; font-weight: 700; cursor: pointer; text-transform: uppercase; font-size: 10px; margin-top: 5px; }
+        #broadcast-btn { background: #fff; color: #000; }
+        #local-video-container { position: absolute; bottom: 20px; right: 20px; width: 220px; aspect-ratio: 16/9; border: 2px solid #fff; background: #000; z-index: 2000; }
         video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-        #chat-container { position: absolute; bottom: 20px; left: 20px; width: 300px; height: 250px; background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.2); display: flex; flex-direction: column; z-index: 500; }
-        #messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 12px; color: #ccc; }
-        #chat-input-area { display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding: 5px; }
-        #chat-input { flex: 1; background: transparent; border: none; color: white; padding: 10px; outline: none; }
+        #chat-container { position: absolute; bottom: 20px; left: 20px; width: 300px; height: 200px; background: rgba(0,0,0,0.8); border: 1px solid #333; display: flex; flex-direction: column; z-index: 500; }
+        #messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 11px; }
     </style>
 </head>
 <body>
-    <div id="search-container">
-        <input id="pac-input" type="text" placeholder="SEARCH DESTINATION...">
-        <div style="display:flex; gap:5px;">
-            <button class="ctrl-btn" onclick="startBroadcast()">START MISSION</button>
-            <button class="ctrl-btn" id="reset-btn" onclick="resetSession()">RESET SESSION</button>
+    <div id="ui-layer">
+        <div class="ctrl-panel">
+            <input id="pac-input" type="text" placeholder="SEARCH DESTINATION...">
+            <button class="btn" id="broadcast-btn" onclick="startBroadcast()">Start Mission</button>
+            <button class="btn" style="background:#ff4444;color:#fff" onclick="db.ref().remove();location.reload();">Purge Session</button>
+            <div id="tourist-list" style="margin-top:10px; font-size:11px; color:#00E5FF;">Waiting for Map...</div>
         </div>
     </div>
-    <div id="chat-container"><div id="messages"></div><div id="chat-input-area"><input type="text" id="chat-input" placeholder="Message..." onkeypress="if(event.key==='Enter') sendMessage()"></div></div>
-    <div id="video-container"><video id="localVideo" autoplay playsinline muted></video></div>
+
+    <div id="chat-container">
+        <div id="messages"></div>
+        <input type="text" id="chat-in" placeholder="Command..." style="background:transparent;border:none;border-top:1px solid #333;color:#fff;padding:8px;" onkeypress="if(event.key==='Enter') sendMsg()">
+    </div>
+
+    <div id="local-video-container"><video id="localVideo" autoplay playsinline muted></video></div>
+
     <div id="container">
         <div id="street-view"></div>
         <div id="resizer"></div>
         <div id="map-2d"></div>
     </div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs&libraries=places&callback=initApp" async defer></script>
 
     <script>
         const firebaseConfig = {
@@ -49,93 +58,114 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        let panorama, map, touristMarkers = {}, pc, localStream;
+        let panorama, map, touristMarkers = {};
 
-        (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Re-trying:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
-            key: "AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs", v: "weekly", libraries: "places"
-        });
-
-        async function initApp() {
-            const { Map } = await google.maps.importLibrary("maps");
-            const { StreetViewPanorama } = await google.maps.importLibrary("streetView");
-            const { Autocomplete } = await google.maps.importLibrary("places");
-
+        function initApp() {
+            console.log("Maps Initializing...");
             const startPos = { lat: 40.7562, lng: -73.9861 };
-            map = new Map(document.getElementById("map-2d"), { center: startPos, zoom: 15, streetViewControl: true });
-            panorama = new StreetViewPanorama(document.getElementById("street-view"), { position: startPos, visible: true });
+            
+            // 2D Map setup
+            map = new google.maps.Map(document.getElementById("map-2d"), {
+                center: startPos, zoom: 15, streetViewControl: true
+            });
+
+            // Street View Setup
+            panorama = new google.maps.StreetViewPanorama(document.getElementById("street-view"), {
+                position: startPos, visible: true
+            });
             map.setStreetView(panorama);
 
-            // Resizer
+            // Resizer Logic
             const resizer = document.getElementById("resizer");
+            const map2d = document.getElementById("map-2d");
             let isResizing = false;
             resizer.addEventListener("mousedown", () => isResizing = true);
             window.addEventListener("mousemove", (e) => {
-                if (!isResizing) return;
-                document.getElementById("map-2d").style.width = (window.innerWidth - e.clientX) + "px";
-                google.maps.event.trigger(map, "resize");
+                if (isResizing) {
+                    let newWidth = window.innerWidth - e.clientX;
+                    map2d.style.width = newWidth + "px";
+                    google.maps.event.trigger(map, "resize");
+                }
             });
             window.addEventListener("mouseup", () => isResizing = false);
 
-            const autocomplete = new Autocomplete(document.getElementById("pac-input"));
+            // Autocomplete
+            const input = document.getElementById("pac-input");
+            const autocomplete = new google.maps.places.Autocomplete(input);
             autocomplete.addListener("place_changed", () => {
-                const place = autocomplete.getPlace();
-                if (place.geometry) { panorama.setPosition(place.geometry.location); map.setCenter(place.geometry.location); }
-            });
-
-            panorama.addListener("position_changed", () => {
-                const pos = panorama.getPosition();
-                db.ref("tour/guide").update({ position: { lat: pos.lat(), lng: pos.lng() } });
-            });
-            panorama.addListener("pov_changed", () => {
-                db.ref("tour/guide").update({ pov: panorama.getPov() });
-            });
-
-            db.ref("tour/tourists").on("value", (snap) => {
-                const data = snap.val() || {};
-                for (let id in touristMarkers) { if (!data[id]) { touristMarkers[id].setMap(null); delete touristMarkers[id]; } }
-                for (let id in data) {
-                    if (touristMarkers[id]) touristMarkers[id].setPosition(data[id]);
-                    else touristMarkers[id] = new google.maps.Marker({ position: data[id], map: map, icon: { path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: "#00E5FF", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2 } });
+                const p = autocomplete.getPlace();
+                if(p.geometry) { 
+                    panorama.setPosition(p.geometry.location); 
+                    map.setCenter(p.geometry.location); 
                 }
             });
+
+            // Sync to Firebase
+            panorama.addListener("position_changed", () => {
+                db.ref("tour/guide/position").set({ lat: panorama.getPosition().lat(), lng: panorama.getPosition().lng() });
+            });
+            panorama.addListener("pov_changed", () => {
+                db.ref("tour/guide/pov").set(panorama.getPov());
+            });
+
+            // Tourist Listener
+            db.ref("tour/tourists").on("value", (snap) => {
+                const data = snap.val() || {};
+                const names = [];
+                for (let id in touristMarkers) { if (!data[id]) { touristMarkers[id].setMap(null); delete touristMarkers[id]; } }
+                for (let id in data) {
+                    names.push(data[id].name);
+                    const pos = { lat: data[id].lat, lng: data[id].lng };
+                    if (touristMarkers[id]) {
+                        touristMarkers[id].setPosition(pos);
+                    } else {
+                        touristMarkers[id] = new google.maps.Marker({
+                            position: pos, map: map,
+                            label: { text: data[id].name, color: "#00E5FF", fontWeight: "700" },
+                            icon: { 
+                                path: google.maps.SymbolPath.CIRCLE, scale: 6, 
+                                fillColor: "#00E5FF", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2,
+                                labelOrigin: new google.maps.Point(0, -15)
+                            }
+                        });
+                    }
+                }
+                document.getElementById("tourist-list").innerText = "Active: " + (names.join(", ") || "None");
+            });
         }
 
-        function resetSession() {
-            if(confirm("Clear Chat and Tourists?")) {
-                db.ref("chat").remove();
-                db.ref("tour/tourists").remove();
-                location.reload();
-            }
-        }
-
-        function sendMessage() {
-            const input = document.getElementById('chat-input');
-            if (input.value.trim()) db.ref("chat").push({ sender: "Guide", text: input.value });
+        function sendMsg() {
+            const input = document.getElementById("chat-in");
+            if(input.value) db.ref("chat").push({ sender: "GUIDE", text: input.value });
             input.value = "";
         }
 
-        db.ref("chat").on("child_added", (snap) => {
+        db.ref("chat").on("child_added", snap => {
             const d = snap.val();
             const div = document.createElement("div");
             div.innerHTML = `<b>${d.sender}:</b> ${d.text}`;
             document.getElementById("messages").appendChild(div);
-            document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+            document.getElementById("messages").scrollTop = 9999;
         });
 
         async function startBroadcast() {
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            document.getElementById('localVideo').srcObject = localStream;
-            pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-            pc.onicecandidate = (e) => { if (e.candidate) db.ref("calls/active/guideCandidates").push(e.candidate.toJSON()); };
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            document.getElementById('localVideo').srcObject = stream;
+            const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+            stream.getTracks().forEach(t => pc.addTrack(t, stream));
+            pc.onicecandidate = e => e.candidate && db.ref("calls/active/guideCandidates").push(e.candidate.toJSON());
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            await db.ref("calls/active").remove();
-            await db.ref("calls/active/offer").set({ type: offer.type, sdp: offer.sdp });
-            db.ref("calls/active/answer").on("value", snap => { if (snap.val() && !pc.currentRemoteDescription) pc.setRemoteDescription(new RTCSessionDescription(snap.val())); });
-            db.ref("calls/active/touristCandidates").on("child_added", snap => { if (snap.val()) pc.addIceCandidate(new RTCIceCandidate(snap.val())); });
+            db.ref("calls/active/offer").set({ type: offer.type, sdp: offer.sdp });
+            db.ref("calls/active/answer").on("value", s => {
+                if(s.val() && pc.signalingState !== "stable") pc.setRemoteDescription(new RTCSessionDescription(s.val()));
+            });
         }
-        window.onload = initApp;
+
+        window.addEventListener('beforeunload', () => {
+            db.ref("tour/guide").remove();
+            db.ref("calls/active").remove();
+        });
     </script>
 </body>
 </html>
