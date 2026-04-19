@@ -2,114 +2,41 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OMNISYNC | TOURIST VIEW</title>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;700&display=swap');
-        
-        body, html { 
-            margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; 
-            background: #000; color: white; font-family: 'Inter', sans-serif; 
-        }
-        
-        /* MOBILE FIRST: STACKED LAYOUT */
-        #container { 
-            display: flex; 
-            flex-direction: column; 
-            height: 100vh; 
-            width: 100vw; 
-        }
-
-        #street-view { 
-            height: 60vh; 
-            width: 100%; 
-            background: #111; 
-        }
-
-        #map-2d { 
-            height: 40vh; 
-            width: 100%; 
-            background: #1a1a1a; 
-        }
-
-        #resizer { display: none; } /* Hidden on mobile */
-
-        /* DESKTOP OVERRIDE: SIDE-BY-SIDE */
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; color: white; font-family: 'Inter', sans-serif; }
+        #container { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
+        #street-view { height: 60vh; width: 100%; }
+        #map-2d { height: 40vh; width: 100%; background: #1a1a1a; }
+        #resizer { width: 8px; background: #222; cursor: col-resize; z-index: 10; display: none; border-left: 1px solid #444; }
         @media (min-width: 900px) {
             #container { flex-direction: row; }
             #street-view { height: 100%; flex: 1; }
             #map-2d { height: 100%; width: 30%; }
-            #resizer { 
-                display: block; 
-                width: 4px; 
-                background: #222; 
-                cursor: col-resize; 
-                z-index: 10; 
-                border-left: 1px solid #333; 
-            }
+            #resizer { display: block; }
         }
-
-        /* FLOATING UI ELEMENTS */
-        #guide-video-container { 
-            position: absolute; top: 15px; right: 15px; 
-            width: 130px; aspect-ratio: 16/9; 
-            background: #000; border: 1px solid #fff; 
-            z-index: 1000; overflow: hidden; 
-        }
-        @media (min-width: 900px) { #guide-video-container { width: 240px; } }
-        
+        #guide-video-container { position: absolute; top: 15px; right: 15px; width: 130px; aspect-ratio: 16/9; background: #000; border: 1px solid #fff; z-index: 1000; }
         video { width: 100%; height: 100%; object-fit: cover; }
-
-        #chat-container { 
-            position: absolute; bottom: 90px; left: 15px; 
-            width: 180px; height: 160px; 
-            background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1); 
-            display: flex; flex-direction: column; z-index: 500; 
-            backdrop-filter: blur(10px);
-        }
-        @media (min-width: 900px) { #chat-container { width: 280px; height: 220px; bottom: 100px; } }
-
+        #chat-container { position: absolute; bottom: 90px; left: 15px; width: 220px; height: 180px; background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; z-index: 500; }
         #messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 11px; color: #ccc; }
-        #chat-input-area { display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding: 5px; }
-        #chat-input { flex: 1; background: transparent; border: none; color: white; padding: 8px; outline: none; font-size: 12px; }
-        #send-btn { background: transparent; color: #fff; border: none; padding: 0 10px; cursor: pointer; font-weight: bold; }
-
-        /* BOTTOM CONTROL BAR */
-        #overlay-ui { 
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
-            z-index: 1000; display: flex; align-items: center; gap: 15px; 
-            background: rgba(0,0,0,0.9); padding: 10px 20px; 
-            border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(15px);
-            width: 90%; max-width: 450px; justify-content: space-between;
-            box-sizing: border-box; border-radius: 4px;
-        }
-        #status-text { font-size: 9px; font-weight: 700; letter-spacing: 2px; color: #fff; text-transform: uppercase; }
-        button.ui-btn { 
-            background: #fff; border: none; padding: 10px 15px; 
-            font-size: 10px; font-weight: 700; letter-spacing: 1px; cursor: pointer; color: #000; 
-            text-transform: uppercase;
-        }
+        #chat-input-area { display: flex; padding: 5px; border-top: 1px solid #333; }
+        #chat-input { flex: 1; background: transparent; border: none; color: white; outline: none; }
+        #overlay-ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: 15px; background: rgba(0,0,0,0.9); padding: 10px; border-radius: 4px; width: 90%; max-width: 400px; justify-content: space-between; border: 1px solid #333; }
+        button.ui-btn { background: #fff; border: none; padding: 10px; font-weight: 700; cursor: pointer; font-size: 10px; text-transform: uppercase; }
     </style>
 </head>
 <body>
     <div id="guide-video-container"><video id="remoteVideo" autoplay playsinline></video></div>
-    
-    <div id="chat-container">
-        <div id="messages"></div>
-        <div id="chat-input-area">
-            <input type="text" id="chat-input" placeholder="Message..." onkeypress="if(event.key==='Enter') sendMessage()">
-            <button id="send-btn" onclick="sendMessage()">></button>
-        </div>
-    </div>
-
+    <div id="chat-container"><div id="messages"></div><div id="chat-input-area"><input type="text" id="chat-input" placeholder="Chat..." onkeypress="if(event.key==='Enter') sendMessage()"></div></div>
     <div id="container">
         <div id="street-view"></div>
         <div id="resizer"></div>
         <div id="map-2d"></div>
     </div>
-    
     <div id="overlay-ui">
         <span id="status-text">TETHERED</span>
         <button class="ui-btn" id="tetherBtn" onclick="toggleTether()">Untether</button>
@@ -126,7 +53,7 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-
+        const myId = "T_" + Math.floor(Math.random() * 1000);
         let panorama, map, guideMarker, isTethered = true, pc;
 
         (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Re-trying:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
@@ -138,51 +65,118 @@
             const { StreetViewPanorama } = await google.maps.importLibrary("streetView");
             const startPos = { lat: 40.7580, lng: -73.9855 };
             
+            // 1. FIXED PEGEMAN: Added streetViewControl and addressControl
             panorama = new StreetViewPanorama(document.getElementById("street-view"), { 
-                position: startPos, pov: { heading: 0, pitch: 0 }, visible: true, addressControl: false 
+                position: startPos, 
+                visible: true, 
+                streetViewControl: true, 
+                addressControl: true,
+                panControl: true
             });
-            
-            map = new Map(document.getElementById("map-2d"), { center: startPos, zoom: 17 });
+
+            map = new Map(document.getElementById("map-2d"), { 
+                center: startPos, 
+                zoom: 17,
+                streetViewControl: true 
+            });
             map.setStreetView(panorama);
-            
+
+            // 2. FIXED RESIZER
+            const resizer = document.getElementById("resizer");
+            let isResizing = false;
+            resizer.addEventListener("mousedown", () => isResizing = true);
+            window.addEventListener("mousemove", (e) => {
+                if (!isResizing) return;
+                const newWidth = window.innerWidth - e.clientX;
+                if (newWidth > 150) {
+                    document.getElementById("map-2d").style.width = newWidth + "px";
+                    google.maps.event.trigger(map, "resize");
+                }
+            });
+            window.addEventListener("mouseup", () => isResizing = false);
+
+            // 3. FIXED GUIDE ARROW: Initialized with rotation 0
             guideMarker = new google.maps.Marker({ 
-                position: startPos, map: map, 
-                icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 6, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2 } 
+                position: startPos, 
+                map: map, 
+                icon: { 
+                    path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, 
+                    scale: 6, 
+                    fillColor: "#F00", 
+                    fillOpacity: 1, 
+                    strokeColor: "#FFF", 
+                    strokeWeight: 2,
+                    rotation: 0 
+                } 
+            });
+
+            panorama.addListener("position_changed", () => {
+                const pos = panorama.getPosition();
+                db.ref("tour/tourists/" + myId).set({ lat: pos.lat(), lng: pos.lng() });
             });
 
             db.ref("tour/guide").on("value", (snap) => {
                 const data = snap.val();
-                if (!data) return;
-                guideMarker.setPosition(data.position);
-                const icon = guideMarker.getIcon();
-                icon.rotation = data.pov.heading;
-                guideMarker.setIcon(icon);
-                if (isTethered && panorama) {
-                    panorama.setPosition(data.position);
-                    panorama.setPov(data.pov);
-                    map.panTo(data.position);
+                if (data) {
+                    guideMarker.setPosition(data.position);
+                    let icon = guideMarker.getIcon();
+                    icon.rotation = data.pov ? data.pov.heading : 0;
+                    guideMarker.setIcon(icon);
+                    
+                    if (isTethered) {
+                        panorama.setPosition(data.position);
+                        if (data.pov) panorama.setPov(data.pov);
+                        map.panTo(data.position);
+                    }
                 }
             });
         }
 
         async function joinVideo() {
-            const vid = document.getElementById('remoteVideo');
-            if (window.AudioContext || window.webkitAudioContext) { new (window.AudioContext || window.webkitAudioContext)().resume(); }
+            // Force Audio Context for Chrome
+            if (window.AudioContext || window.webkitAudioContext) {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                audioCtx.resume();
+            }
+
             pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-            pc.ontrack = (e) => {
-                vid.srcObject = e.streams[0];
-                vid.onloadedmetadata = () => { vid.muted = false; vid.volume = 1.0; vid.play(); document.getElementById('joinBtn').style.display = 'none'; };
+            
+            // Handle incoming track
+            pc.ontrack = (e) => { 
+                const remoteVid = document.getElementById('remoteVideo');
+                remoteVid.srcObject = e.streams[0];
+                remoteVid.play().catch(err => console.error("Autoplay blocked:", err));
+                document.getElementById('joinBtn').innerText = "LIVE";
             };
-            pc.onicecandidate = (e) => { if (e.candidate) db.ref("calls/active/touristCandidates").push(e.candidate.toJSON()); };
-            db.ref("calls/active/guideCandidates").on("child_added", snap => { if (snap.val()) pc.addIceCandidate(new RTCIceCandidate(snap.val())); });
-            db.ref("calls/active/offer").once("value", async snap => {
-                if (snap.val()) {
-                    await pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
-                    const ans = await pc.createAnswer();
-                    await pc.setLocalDescription(ans);
-                    db.ref("calls/active/answer").set({ type: ans.type, sdp: ans.sdp });
-                }
+
+            // Send my ICE candidates to Guide
+            pc.onicecandidate = (e) => { 
+                if (e.candidate) db.ref("calls/active/touristCandidates").push(e.candidate.toJSON()); 
+            };
+
+            // Listen for Guide's ICE candidates
+            db.ref("calls/active/guideCandidates").on("child_added", snap => {
+                if (snap.val()) pc.addIceCandidate(new RTCIceCandidate(snap.val()));
             });
+
+            // Handle the Offer/Answer
+            db.ref("calls/active/offer").once("value", async snap => {
+                if (!snap.val()) {
+                    alert("No guide broadcast found. Guide must click START MISSION first.");
+                    return;
+                }
+                await pc.setRemoteDescription(new RTCSessionDescription(snap.val()));
+                const ans = await pc.createAnswer();
+                await pc.setLocalDescription(ans);
+                db.ref("calls/active/answer").set({ type: ans.type, sdp: ans.sdp });
+            });
+        }
+
+        function toggleTether() {
+            isTethered = !isTethered;
+            document.getElementById("status-text").innerText = isTethered ? "TETHERED" : "ROAMING";
+            document.getElementById("tetherBtn").innerText = isTethered ? "Untether" : "Tether Me";
+            if(isTethered) db.ref("tour/guide").once("value", s => { if(s.val()) panorama.setPosition(s.val().position); });
         }
 
         function sendMessage() {
@@ -199,24 +193,7 @@
             document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
         });
 
-        const resizer = document.getElementById("resizer");
-        const rightSide = document.getElementById("map-2d");
-        let isResizing = false;
-        resizer.addEventListener("mousedown", () => isResizing = true);
-        window.addEventListener("mousemove", (e) => { 
-            if (isResizing) { 
-                rightSide.style.width = (window.innerWidth - e.clientX) + "px"; 
-                google.maps.event.trigger(map, 'resize'); 
-            } 
-        });
-        window.addEventListener("mouseup", () => isResizing = false);
-
-        function toggleTether() {
-            isTethered = !isTethered;
-            document.getElementById("tetherBtn").innerText = isTethered ? "Untether" : "Tether Me";
-            document.getElementById("status-text").innerText = isTethered ? "TETHERED" : "ROAMING";
-            if(isTethered) db.ref("tour/guide").once("value", s => { if(s.val()) { panorama.setPosition(s.val().position); panorama.setPov(s.val().pov); } });
-        }
+        window.addEventListener("beforeunload", () => db.ref("tour/tourists/" + myId).remove());
         window.onload = init;
     </script>
 </body>
