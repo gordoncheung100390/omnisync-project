@@ -8,12 +8,11 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; color: white; font-family: 'Inter', sans-serif; }
-        
         #container { display: flex; height: 100vh; width: 100vw; }
         #street-view { flex: 1; background: #000; }
         #map-2d { width: 30%; background: #1a1a1a; border-left: 1px solid #444; }
         
-        /* YOUR WORKING RESIZER CSS */
+        /* YOUR WORKING RESIZER */
         #resizer { width: 6px; background: #222; cursor: col-resize; z-index: 10; }
         #resizer:hover { background: #00E5FF; }
 
@@ -27,16 +26,15 @@
         #chat-container { position: absolute; bottom: 100px; left: 20px; width: 250px; height: 180px; background: rgba(0,0,0,0.8); border: 1px solid #333; display: flex; flex-direction: column; z-index: 2000; }
         #messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 11px; }
         
-        #overlay-ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 4000; display: flex; gap: 15px; background: rgba(0,0,0,0.9); padding: 12px; border: 1px solid #444; border-radius: 4px; align-items: center; white-space: nowrap; }
-        .btn { background: #fff; color: #000; border: none; padding: 10px 20px; font-weight: 700; cursor: pointer; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; }
-        
-        #guide-status { width: 10px; height: 10px; border-radius: 50%; background: #ff4444; box-shadow: 0 0 5px #ff4444; transition: all 0.3s ease; }
+        #overlay-ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 4000; display: flex; gap: 15px; background: rgba(0,0,0,0.9); padding: 12px; border: 1px solid #444; border-radius: 4px; align-items: center; }
+        .btn { background: #fff; color: #000; border: none; padding: 10px 20px; font-weight: 700; cursor: pointer; text-transform: uppercase; font-size: 10px; }
+        #guide-status { width: 10px; height: 10px; border-radius: 50%; background: #ff4444; }
         #guide-status.online { background: #00ff00; box-shadow: 0 0 10px #00ff00; }
 
         @media (max-width: 768px) {
             #container { flex-direction: column; }
-            #street-view { height: 60vh; width: 100%; }
-            #map-2d { height: 40vh; width: 100%; border-left: none; border-top: 1px solid #444; }
+            #street-view { height: 60vh; }
+            #map-2d { height: 40vh; width: 100% !important; border-left: none; border-top: 1px solid #444; }
             #resizer { display: none; }
         }
     </style>
@@ -51,14 +49,9 @@
     </div>
 
     <div id="guide-video-container">
-        <video id="guide-video" autoplay playsinline muted></video>
+        <video id="guide-video" autoplay playsinline webkit-playsinline muted></video>
     </div>
     
-    <div id="chat-container">
-        <div id="messages"></div>
-        <input type="text" id="chat-msg" placeholder="Type message..." style="background:transparent;border:none;border-top:1px solid #333;color:#fff;padding:8px;" onkeypress="if(event.key==='Enter') sendChat()">
-    </div>
-
     <div id="container">
         <div id="street-view"></div>
         <div id="resizer"></div>
@@ -67,7 +60,6 @@
 
     <div id="overlay-ui">
         <div id="guide-status"></div>
-        <span style="font-size:10px; font-weight:700;">GUIDE STATUS</span>
         <button class="btn" id="tether-btn" onclick="toggleTether()">Untether</button>
         <button class="btn" onclick="joinLive()" style="background:#00E5FF">Sync Senses</button>
     </div>
@@ -85,7 +77,7 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         const myId = "T_" + Math.floor(Math.random()*9999);
-        let userName, panorama, map, guideMarker, touristSelfMarker, isTethered = true, pc;
+        let userName, panorama, map, isTethered = true, pc;
 
         function startSession() {
             userName = document.getElementById("name-in").value.trim() || "Guest";
@@ -94,16 +86,10 @@
 
         async function initApp() {
             const startPos = { lat: 40.75, lng: -73.98 };
-            panorama = new google.maps.StreetViewPanorama(document.getElementById("street-view"), { 
-                position: startPos, visible: true, addressControl: false, clickToGo: true
-            });
-            map = new google.maps.Map(document.getElementById("map-2d"), { center: startPos, zoom: 17, streetViewControl: false });
+            panorama = new google.maps.StreetViewPanorama(document.getElementById("street-view"), { position: startPos, visible: true });
+            map = new google.maps.Map(document.getElementById("map-2d"), { center: startPos, zoom: 17 });
             map.setStreetView(panorama);
 
-            guideMarker = new google.maps.Marker({ position: startPos, map: map, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2, rotation: 0 }, zIndex: 1000 });
-            touristSelfMarker = new google.maps.Marker({ position: startPos, map: map, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#FFD700", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2, rotation: 0 }, zIndex: 500 });
-
-            // YOUR WORKING RESIZER LOGIC
             const resizer = document.getElementById("resizer");
             let isResizing = false;
             resizer.addEventListener("mousedown", () => isResizing = true);
@@ -115,79 +101,48 @@
             });
             window.addEventListener("mouseup", () => isResizing = false);
 
-            panorama.addListener("position_changed", () => {
-                const currentPos = panorama.getPosition();
-                touristSelfMarker.setPosition(currentPos);
-                db.ref("tour/tourists/" + myId).update({ name: userName, lat: currentPos.lat(), lng: currentPos.lng() });
-            });
-
-            panorama.addListener("pov_changed", () => {
-                const pov = panorama.getPov();
-                let icon = touristSelfMarker.getIcon();
-                icon.rotation = pov.heading;
-                touristSelfMarker.setIcon(icon);
-            });
-
             db.ref("tour/guide").on("value", snap => {
                 const data = snap.val();
-                const statusDot = document.getElementById("guide-status");
-                if(!data || !data.position) { statusDot.classList.remove("online"); return; }
-                statusDot.classList.add("online");
-                const guideLatLng = new google.maps.LatLng(data.position.lat, data.position.lng);
-                guideMarker.setPosition(guideLatLng);
-                if(data.pov && data.pov.heading !== undefined) {
-                    let icon = guideMarker.getIcon();
-                    icon.rotation = data.pov.heading;
-                    guideMarker.setIcon(icon);
-                }
-                if(isTethered) {
-                    panorama.setPosition(guideLatLng);
+                if(!data) return;
+                document.getElementById("guide-status").classList.add("online");
+                if(isTethered && data.position) {
+                    panorama.setPosition(data.position);
                     if(data.pov) panorama.setPov(data.pov);
-                    map.panTo(guideLatLng);
                 }
+            });
+
+            panorama.addListener("position_changed", () => {
+                const p = panorama.getPosition();
+                db.ref("tour/tourists/" + myId).update({ name: userName, lat: p.lat(), lng: p.lng() });
             });
         }
 
-        function toggleTether() {
-            isTethered = !isTethered;
-            document.getElementById("tether-btn").innerText = isTethered ? "Untether" : "Tether Me";
-            if(isTethered) {
-                db.ref("tour/guide").once("value", s => { 
-                    const d = s.val();
-                    if(d && d.position) {
-                        const target = new google.maps.LatLng(d.position.lat, d.position.lng);
-                        panorama.setPosition(target); 
-                        if(d.pov) panorama.setPov(d.pov);
-                        map.panTo(target);
-                    }
-                });
-            }
-        }
-
-        // IMPROVED WEBCAM SYNC (WAIT FOR OFFER)
         async function joinLive() {
-            const videoElement = document.getElementById("guide-video");
-            videoElement.muted = false;
-            videoElement.load(); 
+            const video = document.getElementById("guide-video");
+            
+            // MOBILE REWAKE: prime the video element
+            video.play(); 
+            video.muted = false;
 
             if(pc) pc.close();
             pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-            
-            pc.ontrack = (event) => {
-                if (event.streams && event.streams[0]) {
-                    videoElement.srcObject = event.streams[0];
-                    videoElement.play().catch(() => {
-                        videoElement.muted = true;
-                        videoElement.play();
+
+            pc.ontrack = (e) => {
+                if (e.streams[0]) {
+                    video.srcObject = e.streams[0];
+                    // Force play on track arrival
+                    video.play().catch(() => {
+                        video.muted = true;
+                        video.play();
                     });
                 }
             };
 
-            // Listen for the Offer from the Guide
-            db.ref("calls/active/offer").on("value", async (snapshot) => {
-                const offer = snapshot.val();
+            // This listener stays active to catch the offer even if Guide is slow
+            db.ref("calls/active/offer").on("value", async (snap) => {
+                const offer = snap.val();
                 if (!offer) return;
-
+                
                 if (pc.signalingState !== "stable") {
                     await pc.setRemoteDescription(new RTCSessionDescription(offer));
                     const answer = await pc.createAnswer();
@@ -196,27 +151,12 @@
                 }
             });
 
-            db.ref("calls/active/guideCandidates").on("child_added", (snap) => {
-                const candidate = snap.val();
-                if (candidate) pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn(e));
+            db.ref("calls/active/guideCandidates").on("child_added", snap => {
+                if (snap.val()) pc.addIceCandidate(new RTCIceCandidate(snap.val()));
             });
         }
 
-        function sendChat() {
-            const el = document.getElementById("chat-msg");
-            if(el.value.trim()) db.ref("chat").push({ sender: userName.toUpperCase(), text: el.value });
-            el.value = "";
-        }
-
-        db.ref("chat").on("child_added", snap => {
-            const d = snap.val();
-            const div = document.createElement("div");
-            div.innerHTML = `<b>${d.sender}:</b> ${d.text}`;
-            document.getElementById("messages").appendChild(div);
-            document.getElementById("messages").scrollTop = 9999;
-        });
-
-        window.onbeforeunload = () => db.ref("tour/tourists/" + myId).remove();
+        function toggleTether() { isTethered = !isTethered; }
     </script>
 </body>
 </html>
