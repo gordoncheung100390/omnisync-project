@@ -8,24 +8,29 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; color: white; font-family: 'Inter', sans-serif; }
+        
         #container { display: flex; height: 100vh; width: 100vw; }
         #street-view { flex: 1; background: #000; }
         #map-2d { width: 30%; background: #1a1a1a; border-left: 1px solid #444; }
-        #resizer { width: 6px; background: #222; cursor: col-resize; z-index: 10; }
         
+        /* RESIZER */
+        #resizer { width: 6px; background: #222; cursor: col-resize; z-index: 10; }
+        #resizer:hover { background: #00E5FF; }
+
         #name-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 9999; display: flex; align-items: center; justify-content: center; }
         #name-box { background: #111; padding: 40px; border: 1px solid #333; text-align: center; border-radius: 4px; }
         input { padding: 12px; background: #000; border: 1px solid #fff; color: #fff; margin-bottom: 20px; width: 250px; font-family: inherit; }
         
         #guide-video-container { position: absolute; top: 20px; right: 20px; width: 220px; aspect-ratio: 16/9; border: 2px solid #fff; z-index: 1000; background: #000; }
-        #guide-video { width: 100%; height: 100%; object-fit: cover; }
+        #guide-video { width: 100%; height: 100%; object-fit: cover; background: #000; }
         
         #chat-container { position: absolute; bottom: 100px; left: 20px; width: 250px; height: 180px; background: rgba(0,0,0,0.8); border: 1px solid #333; display: flex; flex-direction: column; z-index: 2000; }
         #messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 11px; }
         
-        #overlay-ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; gap: 15px; background: rgba(0,0,0,0.9); padding: 12px; border: 1px solid #444; border-radius: 4px; align-items: center; white-space: nowrap; }
+        #overlay-ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 4000; display: flex; gap: 15px; background: rgba(0,0,0,0.9); padding: 12px; border: 1px solid #444; border-radius: 4px; align-items: center; white-space: nowrap; }
         .btn { background: #fff; color: #000; border: none; padding: 10px 20px; font-weight: 700; cursor: pointer; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; }
-        #guide-status { width: 10px; height: 10px; border-radius: 50%; background: #ff4444; box-shadow: 0 0 5px #ff4444; }
+        
+        #guide-status { width: 10px; height: 10px; border-radius: 50%; background: #ff4444; box-shadow: 0 0 5px #ff4444; transition: all 0.3s ease; }
         #guide-status.online { background: #00ff00; box-shadow: 0 0 10px #00ff00; }
     </style>
 </head>
@@ -88,11 +93,11 @@
             map = new google.maps.Map(document.getElementById("map-2d"), { center: startPos, zoom: 17, streetViewControl: false });
             map.setStreetView(panorama);
 
-            // RESTORED MARKERS
+            // RE-INITIALIZE MARKERS
             guideMarker = new google.maps.Marker({ position: startPos, map: map, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2, rotation: 0 }, zIndex: 1000 });
             touristSelfMarker = new google.maps.Marker({ position: startPos, map: map, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#FFD700", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2, rotation: 0 }, zIndex: 500 });
 
-            // RESIZER
+            // WORKING RESIZER
             const resizer = document.getElementById("resizer");
             let isResizing = false;
             resizer.addEventListener("mousedown", () => isResizing = true);
@@ -104,7 +109,7 @@
             });
             window.addEventListener("mouseup", () => isResizing = false);
 
-            // SYNC LISTENERS (RED ARROW & YELLOW MAN)
+            // SNAP-BACK / POSITION LISTENERS
             panorama.addListener("position_changed", () => {
                 const currentPos = panorama.getPosition();
                 touristSelfMarker.setPosition(currentPos);
@@ -138,14 +143,41 @@
             });
         }
 
-        async function joinLive() {
-            const video = document.getElementById("guide-video");
-            video.muted = false; // Prime for mobile
-            video.play().catch(() => {});
+        function toggleTether() {
+            isTethered = !isTethered;
+            document.getElementById("tether-btn").innerText = isTethered ? "Untether" : "Tether Me";
+        }
 
+        // CHAT LOGIC
+        function sendChat() {
+            const el = document.getElementById("chat-msg");
+            if(el.value.trim()) db.ref("chat").push({ sender: userName.toUpperCase(), text: el.value });
+            el.value = "";
+        }
+
+        db.ref("chat").on("child_added", snap => {
+            const d = snap.val();
+            const div = document.createElement("div");
+            div.innerHTML = `<b>${d.sender}:</b> ${d.text}`;
+            document.getElementById("messages").appendChild(div);
+            document.getElementById("messages").scrollTop = 9999;
+        });
+
+        // WEBCAM LOGIC
+        async function joinLive() {
+            const videoElement = document.getElementById("guide-video");
+            videoElement.play().catch(() => {}); // Prime for mobile
+            
             if(pc) pc.close();
             pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-            pc.ontrack = (e) => { video.srcObject = e.streams[0]; video.play().catch(() => { video.muted=true; video.play(); }); };
+            
+            pc.ontrack = (event) => {
+                videoElement.srcObject = event.streams[0];
+                videoElement.play().catch(() => {
+                    videoElement.muted = true;
+                    videoElement.play();
+                });
+            };
 
             db.ref("calls/active/offer").on("value", async (snap) => {
                 const offer = snap.val();
@@ -156,18 +188,12 @@
                     await db.ref("calls/active/answer").set({ type: answer.type, sdp: answer.sdp });
                 }
             });
-            db.ref("calls/active/guideCandidates").on("child_added", s => s.val() && pc.addIceCandidate(new RTCIceCandidate(s.val())));
+
+            db.ref("calls/active/guideCandidates").on("child_added", (snap) => {
+                if (snap.val()) pc.addIceCandidate(new RTCIceCandidate(snap.val()));
+            });
         }
 
-        function toggleTether() { isTethered = !isTethered; document.getElementById("tether-btn").innerText = isTethered ? "Untether" : "Tether Me"; }
-        function sendChat() { const el = document.getElementById("chat-msg"); if(el.value.trim()) db.ref("chat").push({ sender: userName.toUpperCase(), text: el.value }); el.value = ""; }
-        db.ref("chat").on("child_added", snap => {
-            const d = snap.val();
-            const div = document.createElement("div");
-            div.innerHTML = `<b>${d.sender}:</b> ${d.text}`;
-            document.getElementById("messages").appendChild(div);
-            document.getElementById("messages").scrollTop = 9999;
-        });
         window.onbeforeunload = () => db.ref("tour/tourists/" + myId).remove();
     </script>
 </body>
