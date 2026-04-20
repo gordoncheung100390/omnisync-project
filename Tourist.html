@@ -19,7 +19,6 @@
         input { padding: 12px; background: #000; border: 1px solid #fff; color: #fff; margin-bottom: 20px; width: 250px; font-family: inherit; }
         
         #guide-video-container { position: absolute; top: 20px; right: 20px; width: 220px; aspect-ratio: 16/9; border: 2px solid #fff; z-index: 1000; background: #000; overflow: hidden; }
-        /* FIXED: Object-fit for better mobile viewing */
         #guide-video { width: 100%; height: 100%; object-fit: cover; background: #000; }
         
         #chat-container { position: absolute; bottom: 100px; left: 20px; width: 250px; height: 180px; background: rgba(0,0,0,0.8); border: 1px solid #333; display: flex; flex-direction: column; z-index: 2000; }
@@ -27,7 +26,7 @@
         
         #overlay-ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 4000; display: flex; gap: 15px; background: rgba(0,0,0,0.9); padding: 12px; border: 1px solid #444; border-radius: 4px; align-items: center; white-space: nowrap; }
         .btn { background: #fff; color: #000; border: none; padding: 10px 20px; font-weight: 700; cursor: pointer; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; }
-        #guide-status { width: 10px; height: 10px; border-radius: 50%; background: #ff4444; box-shadow: 0 0 5px #ff4444; transition: all 0.3s ease; }
+        #guide-status { width: 10px; height: 10px; border-radius: 50%; background: #ff4444; box-shadow: 0 0 5px #ff4444; }
         #guide-status.online { background: #00ff00; box-shadow: 0 0 10px #00ff00; }
     </style>
 </head>
@@ -57,7 +56,6 @@
 
     <div id="overlay-ui">
         <div id="guide-status"></div>
-        <span style="font-size:10px; font-weight:700;">GUIDE STATUS</span>
         <button class="btn" id="tether-btn" onclick="toggleTether()">Untether</button>
         <button class="btn" onclick="joinLive()" style="background:#00E5FF">Sync Senses</button>
     </div>
@@ -87,24 +85,13 @@
             panorama = new google.maps.StreetViewPanorama(document.getElementById("street-view"), { 
                 position: startPos, visible: true, addressControl: false, clickToGo: true
             });
-
-            map = new google.maps.Map(document.getElementById("map-2d"), { 
-                center: startPos, zoom: 17, streetViewControl: false 
-            });
+            map = new google.maps.Map(document.getElementById("map-2d"), { center: startPos, zoom: 17, streetViewControl: false });
             map.setStreetView(panorama);
 
-            guideMarker = new google.maps.Marker({ 
-                position: startPos, map: map, 
-                icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2, rotation: 0 },
-                zIndex: 1000
-            });
+            guideMarker = new google.maps.Marker({ position: startPos, map: map, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2, rotation: 0 }, zIndex: 1000 });
+            touristSelfMarker = new google.maps.Marker({ position: startPos, map: map, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#FFD700", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2, rotation: 0 }, zIndex: 500 });
 
-            touristSelfMarker = new google.maps.Marker({
-                position: startPos, map: map,
-                icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#FFD700", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2, rotation: 0 },
-                zIndex: 500
-            });
-
+            // Resizer Logic
             const resizer = document.getElementById("resizer");
             let isResizing = false;
             resizer.addEventListener("mousedown", () => isResizing = true);
@@ -116,61 +103,50 @@
             });
             window.addEventListener("mouseup", () => isResizing = false);
 
-            panorama.addListener("position_changed", () => {
-                const currentPos = panorama.getPosition();
-                touristSelfMarker.setPosition(currentPos);
-                db.ref("tour/tourists/" + myId).update({ name: userName, lat: currentPos.lat(), lng: currentPos.lng() });
-            });
-
-            panorama.addListener("pov_changed", () => {
-                const pov = panorama.getPov();
-                let icon = touristSelfMarker.getIcon();
-                icon.rotation = pov.heading;
-                touristSelfMarker.setIcon(icon);
-            });
-
+            // MASTER LISTENER: Follow Guide + Snap Back
             db.ref("tour/guide").on("value", snap => {
                 const data = snap.val();
-                const statusDot = document.getElementById("guide-status");
-                if(!data || !data.position) { statusDot.classList.remove("online"); return; }
-                statusDot.classList.add("online");
-                const guideLatLng = new google.maps.LatLng(data.position.lat, data.position.lng);
-                guideMarker.setPosition(guideLatLng);
-                if(data.pov && data.pov.heading !== undefined) {
+                if(!data || !data.position) return;
+                document.getElementById("guide-status").classList.add("online");
+                
+                const gPos = new google.maps.LatLng(data.position.lat, data.position.lng);
+                guideMarker.setPosition(gPos);
+                
+                if(data.pov) {
                     let icon = guideMarker.getIcon();
                     icon.rotation = data.pov.heading;
                     guideMarker.setIcon(icon);
                 }
+
+                // THE SNAP BACK LOGIC
                 if(isTethered) {
-                    panorama.setPosition(guideLatLng);
+                    panorama.setPosition(gPos);
                     if(data.pov) panorama.setPov(data.pov);
-                    map.panTo(guideLatLng);
+                    map.panTo(gPos);
                 }
+            });
+
+            // Local Position Tracking
+            panorama.addListener("position_changed", () => {
+                const pos = panorama.getPosition();
+                touristSelfMarker.setPosition(pos);
+                db.ref("tour/tourists/" + myId).update({ name: userName, lat: pos.lat(), lng: pos.lng() });
             });
         }
 
         async function joinLive() {
             const video = document.getElementById("guide-video");
-            
-            // MOBILE FIX: "Wake up" the video element immediately on click
             video.play().catch(() => {});
-            video.muted = false; 
+            video.muted = false; // Attempt unmute on user click
 
             if(pc) pc.close();
             pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
 
-            pc.ontrack = (event) => {
-                if (event.streams && event.streams[0]) {
-                    video.srcObject = event.streams[0];
-                    // Final attempt to play; if audio is blocked, stay muted
-                    video.play().catch(() => {
-                        video.muted = true;
-                        video.play();
-                    });
-                }
+            pc.ontrack = (e) => { 
+                video.srcObject = e.streams[0]; 
+                video.play().catch(() => { video.muted = true; video.play(); }); 
             };
 
-            // Use .on() to handle Guide restarts/re-offers
             db.ref("calls/active/offer").on("value", async (snap) => {
                 const offer = snap.val();
                 if (offer && pc.signalingState !== "stable") {
@@ -181,14 +157,25 @@
                 }
             });
 
-            db.ref("calls/active/guideCandidates").on("child_added", (snap) => {
-                if (snap.val()) pc.addIceCandidate(new RTCIceCandidate(snap.val())).catch(() => {});
+            db.ref("calls/active/guideCandidates").on("child_added", s => {
+                if(s.val()) pc.addIceCandidate(new RTCIceCandidate(s.val())).catch(e => {});
             });
         }
 
-        function toggleTether() {
-            isTethered = !isTethered;
-            document.getElementById("tether-btn").innerText = isTethered ? "Untether" : "Tether Me";
+        function toggleTether() { 
+            isTethered = !isTethered; 
+            document.getElementById("tether-btn").innerText = isTethered ? "Untether" : "Tether Me"; 
+            
+            // If snapping back, grab the current Guide position immediately
+            if(isTethered) {
+                db.ref("tour/guide").once("value", snap => {
+                    const data = snap.val();
+                    if(data && data.position) {
+                        panorama.setPosition(data.position);
+                        if(data.pov) panorama.setPov(data.pov);
+                    }
+                });
+            }
         }
 
         function sendChat() {
