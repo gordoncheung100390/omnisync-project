@@ -2,18 +2,35 @@
 <html>
 <head>
     <title>OMNISYNC | TOURIST VIEW</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; color: white; font-family: 'Inter', sans-serif; }
-        #container { display: flex; height: 100vh; width: 100vw; }
+        
+        /* Default Desktop Layout (Side-by-Side) */
+        #container { display: flex; height: 100vh; width: 100vw; flex-direction: row; }
         #street-view { flex: 1; background: #000; }
         #map-2d { width: 30%; background: #1a1a1a; border-left: 1px solid #444; }
         #resizer { width: 6px; background: #222; cursor: col-resize; z-index: 10; }
+
+        /* MOBILE OPTIMIZATION: Stack top/bottom on small screens */
+        @media (max-width: 768px) {
+            #container { flex-direction: column; }
+            #street-view { height: 60vh; width: 100%; }
+            #map-2d { height: 40vh; width: 100%; border-left: none; border-top: 1px solid #444; }
+            #resizer { display: none; } /* Hide resizer on mobile */
+            #guide-video-container { width: 120px !important; top: 10px !important; right: 10px !important; }
+            #overlay-ui { width: 90%; font-size: 8px; gap: 5px; padding: 8px; }
+            #chat-container { width: 180px; height: 120px; bottom: 80px; left: 10px; }
+        }
+
         #name-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 9999; display: flex; align-items: center; justify-content: center; }
         #name-box { background: #111; padding: 40px; border: 1px solid #333; text-align: center; border-radius: 4px; }
-        input { padding: 12px; background: #000; border: 1px solid #fff; color: #fff; margin-bottom: 20px; width: 250px; font-family: inherit; }
+        input { padding: 12px; background: #000; border: 1px solid #fff; color: #fff; margin-bottom: 20px; width: 250px; font-family: inherit; font-size: 16px; } /* 16px prevents iOS zoom on focus */
         #guide-video-container { position: absolute; top: 20px; right: 20px; width: 220px; aspect-ratio: 16/9; border: 2px solid #fff; z-index: 1000; background: #000; }
         #guide-video { width: 100%; height: 100%; object-fit: cover; }
         #chat-container { position: absolute; bottom: 100px; left: 20px; width: 250px; height: 180px; background: rgba(0,0,0,0.8); border: 1px solid #333; display: flex; flex-direction: column; z-index: 2000; }
@@ -73,6 +90,8 @@
         function startSession() {
             userName = document.getElementById("name-in").value.trim() || "Guest";
             document.getElementById("name-overlay").remove();
+            // Trigger a resize to ensure maps fit the mobile container
+            window.dispatchEvent(new Event('resize'));
         }
 
         async function initApp() {
@@ -82,23 +101,24 @@
                 position: startPos, 
                 visible: true,
                 addressControl: false,
-                clickToGo: true
+                clickToGo: true,
+                zoomControl: true // Useful for mobile
             });
 
             map = new google.maps.Map(document.getElementById("map-2d"), { 
                 center: startPos, 
                 zoom: 17,
-                streetViewControl: false 
+                streetViewControl: false,
+                mapTypeControl: false
             });
             map.setStreetView(panorama);
 
-            // GUIDE RED ARROW
             guideMarker = new google.maps.Marker({ 
                 position: startPos, 
                 map: map, 
                 icon: { 
                     path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, 
-                    scale: 7, 
+                    scale: 6, 
                     fillColor: "#F00", 
                     fillOpacity: 1, 
                     strokeColor: "#FFF", 
@@ -108,13 +128,12 @@
                 zIndex: 1000
             });
 
-            // TOURIST YELLOW ARROW (Heading Sync)
             touristSelfMarker = new google.maps.Marker({
                 position: startPos,
                 map: map,
                 icon: {
                     path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-                    scale: 7,
+                    scale: 6,
                     fillColor: "#FFD700",
                     fillOpacity: 1,
                     strokeColor: "#FFF",
@@ -124,30 +143,14 @@
                 zIndex: 500
             });
 
-            // Resizer logic
-            const resizer = document.getElementById("resizer");
-            let isResizing = false;
-            resizer.addEventListener("mousedown", () => isResizing = true);
-            window.addEventListener("mousemove", (e) => { 
-                if (isResizing) { 
-                    document.getElementById("map-2d").style.width = (window.innerWidth - e.clientX) + "px"; 
-                    google.maps.event.trigger(map, "resize"); 
-                }
-            });
-            window.addEventListener("mouseup", () => isResizing = false);
-
-            // Sync Self Marker Position
             panorama.addListener("position_changed", () => {
                 const currentPos = panorama.getPosition();
                 touristSelfMarker.setPosition(currentPos);
                 db.ref("tour/tourists/" + myId).update({ 
-                    name: userName, 
-                    lat: currentPos.lat(), 
-                    lng: currentPos.lng() 
+                    name: userName, lat: currentPos.lat(), lng: currentPos.lng() 
                 });
             });
 
-            // Sync Self Marker HEADING (The Yellow Man Fix)
             panorama.addListener("pov_changed", () => {
                 const pov = panorama.getPov();
                 let icon = touristSelfMarker.getIcon();
@@ -155,7 +158,6 @@
                 touristSelfMarker.setIcon(icon);
             });
 
-            // MASTER LISTENER: Follow Guide
             db.ref("tour/guide").on("value", snap => {
                 const data = snap.val();
                 const statusDot = document.getElementById("guide-status");
@@ -164,16 +166,13 @@
                     return;
                 }
                 statusDot.classList.add("online");
-                
                 const guideLatLng = new google.maps.LatLng(data.position.lat, data.position.lng);
                 guideMarker.setPosition(guideLatLng);
-                
                 if(data.pov && data.pov.heading !== undefined) {
                     let icon = guideMarker.getIcon();
                     icon.rotation = data.pov.heading;
                     guideMarker.setIcon(icon);
                 }
-
                 if(isTethered) {
                     panorama.setPosition(guideLatLng);
                     if(data.pov) panorama.setPov(data.pov);
@@ -184,8 +183,7 @@
 
         function toggleTether() {
             isTethered = !isTethered;
-            const btn = document.getElementById("tether-btn");
-            btn.innerText = isTethered ? "Untether" : "Tether Me";
+            document.getElementById("tether-btn").innerText = isTethered ? "Untether" : "Tether Me";
             if(isTethered) {
                 db.ref("tour/guide").once("value", s => { 
                     const d = s.val();
@@ -193,7 +191,6 @@
                         const target = new google.maps.LatLng(d.position.lat, d.position.lng);
                         panorama.setPosition(target); 
                         if(d.pov) panorama.setPov(d.pov);
-                        map.panTo(target);
                     }
                 });
             }
@@ -211,7 +208,7 @@
                 }
             };
             const offerSnap = await db.ref("calls/active/offer").once("value");
-            if (!offerSnap.exists()) return alert("No Guide broadcast found.");
+            if (!offerSnap.exists()) return alert("No broadcast found.");
             await pc.setRemoteDescription(new RTCSessionDescription(offerSnap.val()));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
