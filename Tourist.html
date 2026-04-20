@@ -8,12 +8,9 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; color: white; font-family: 'Inter', sans-serif; }
-        
         #container { display: flex; height: 100vh; width: 100vw; }
         #street-view { flex: 1; background: #000; }
         #map-2d { width: 30%; background: #1a1a1a; border-left: 1px solid #444; }
-        
-        /* RESIZER */
         #resizer { width: 6px; background: #222; cursor: col-resize; z-index: 10; }
         #resizer:hover { background: #00E5FF; }
 
@@ -29,8 +26,7 @@
         
         #overlay-ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 4000; display: flex; gap: 15px; background: rgba(0,0,0,0.9); padding: 12px; border: 1px solid #444; border-radius: 4px; align-items: center; white-space: nowrap; }
         .btn { background: #fff; color: #000; border: none; padding: 10px 20px; font-weight: 700; cursor: pointer; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; }
-        
-        #guide-status { width: 10px; height: 10px; border-radius: 50%; background: #ff4444; box-shadow: 0 0 5px #ff4444; transition: all 0.3s ease; }
+        #guide-status { width: 10px; height: 10px; border-radius: 50%; background: #ff4444; }
         #guide-status.online { background: #00ff00; box-shadow: 0 0 10px #00ff00; }
     </style>
 </head>
@@ -60,7 +56,6 @@
 
     <div id="overlay-ui">
         <div id="guide-status"></div>
-        <span style="font-size:10px; font-weight:700;">GUIDE STATUS</span>
         <button class="btn" id="tether-btn" onclick="toggleTether()">Untether</button>
         <button class="btn" onclick="joinLive()" style="background:#00E5FF">Sync Senses</button>
     </div>
@@ -93,11 +88,9 @@
             map = new google.maps.Map(document.getElementById("map-2d"), { center: startPos, zoom: 17, streetViewControl: false });
             map.setStreetView(panorama);
 
-            // RE-INITIALIZE MARKERS
             guideMarker = new google.maps.Marker({ position: startPos, map: map, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#F00", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2, rotation: 0 }, zIndex: 1000 });
             touristSelfMarker = new google.maps.Marker({ position: startPos, map: map, icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, fillColor: "#FFD700", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2, rotation: 0 }, zIndex: 500 });
 
-            // WORKING RESIZER
             const resizer = document.getElementById("resizer");
             let isResizing = false;
             resizer.addEventListener("mousedown", () => isResizing = true);
@@ -109,46 +102,59 @@
             });
             window.addEventListener("mouseup", () => isResizing = false);
 
-            // SNAP-BACK / POSITION LISTENERS
-            panorama.addListener("position_changed", () => {
-                const currentPos = panorama.getPosition();
-                touristSelfMarker.setPosition(currentPos);
-                db.ref("tour/tourists/" + myId).update({ name: userName, lat: currentPos.lat(), lng: currentPos.lng() });
-            });
-
-            panorama.addListener("pov_changed", () => {
-                const pov = panorama.getPov();
-                let icon = touristSelfMarker.getIcon();
-                icon.rotation = pov.heading;
-                touristSelfMarker.setIcon(icon);
-            });
-
+            // TETHER & MARKER LOGIC
             db.ref("tour/guide").on("value", snap => {
                 const data = snap.val();
-                const statusDot = document.getElementById("guide-status");
-                if(!data || !data.position) { statusDot.classList.remove("online"); return; }
-                statusDot.classList.add("online");
-                const guideLatLng = new google.maps.LatLng(data.position.lat, data.position.lng);
-                guideMarker.setPosition(guideLatLng);
-                if(data.pov && data.pov.heading !== undefined) {
+                if(!data || !data.position) return;
+                document.getElementById("guide-status").classList.add("online");
+                
+                const gPos = new google.maps.LatLng(data.position.lat, data.position.lng);
+                guideMarker.setPosition(gPos);
+                
+                if(data.pov) {
                     let icon = guideMarker.getIcon();
                     icon.rotation = data.pov.heading;
                     guideMarker.setIcon(icon);
                 }
+
                 if(isTethered) {
-                    panorama.setPosition(guideLatLng);
+                    panorama.setPosition(gPos);
                     if(data.pov) panorama.setPov(data.pov);
-                    map.panTo(guideLatLng);
+                    map.panTo(gPos);
                 }
+            });
+
+            panorama.addListener("position_changed", () => {
+                const pos = panorama.getPosition();
+                touristSelfMarker.setPosition(pos);
+                db.ref("tour/tourists/" + myId).update({ name: userName, lat: pos.lat(), lng: pos.lng() });
             });
         }
 
-        function toggleTether() {
-            isTethered = !isTethered;
-            document.getElementById("tether-btn").innerText = isTethered ? "Untether" : "Tether Me";
+        async function joinLive() {
+            const video = document.getElementById("guide-video");
+            video.play().catch(() => {});
+            if(pc) pc.close();
+            pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+            pc.ontrack = (e) => { video.srcObject = e.streams[0]; video.play().catch(() => { video.muted=true; video.play(); }); };
+
+            db.ref("calls/active/offer").on("value", async (snap) => {
+                const offer = snap.val();
+                if (offer && pc.signalingState !== "stable") {
+                    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    await db.ref("calls/active/answer").set({ type: answer.type, sdp: answer.sdp });
+                }
+            });
+            db.ref("calls/active/guideCandidates").on("child_added", s => s.val() && pc.addIceCandidate(new RTCIceCandidate(s.val())));
         }
 
-        // CHAT LOGIC
+        function toggleTether() { 
+            isTethered = !isTethered; 
+            document.getElementById("tether-btn").innerText = isTethered ? "Untether" : "Tether Me"; 
+        }
+
         function sendChat() {
             const el = document.getElementById("chat-msg");
             if(el.value.trim()) db.ref("chat").push({ sender: userName.toUpperCase(), text: el.value });
@@ -162,37 +168,6 @@
             document.getElementById("messages").appendChild(div);
             document.getElementById("messages").scrollTop = 9999;
         });
-
-        // WEBCAM LOGIC
-        async function joinLive() {
-            const videoElement = document.getElementById("guide-video");
-            videoElement.play().catch(() => {}); // Prime for mobile
-            
-            if(pc) pc.close();
-            pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-            
-            pc.ontrack = (event) => {
-                videoElement.srcObject = event.streams[0];
-                videoElement.play().catch(() => {
-                    videoElement.muted = true;
-                    videoElement.play();
-                });
-            };
-
-            db.ref("calls/active/offer").on("value", async (snap) => {
-                const offer = snap.val();
-                if (offer && pc.signalingState !== "stable") {
-                    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-                    await db.ref("calls/active/answer").set({ type: answer.type, sdp: answer.sdp });
-                }
-            });
-
-            db.ref("calls/active/guideCandidates").on("child_added", (snap) => {
-                if (snap.val()) pc.addIceCandidate(new RTCIceCandidate(snap.val()));
-            });
-        }
 
         window.onbeforeunload = () => db.ref("tour/tourists/" + myId).remove();
     </script>
