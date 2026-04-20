@@ -2,23 +2,24 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TOURIST CAMERA TEST</title>
+    <title>ICE BREAKER | TOURIST</title>
 </head>
-<body style="background:#000; color:#fff; text-align:center; font-family:sans-serif;">
-    <h2>TOURIST SYNC</h2>
+<body style="background:#000; color:#00E5FF; text-align:center; font-family:monospace; padding:20px;">
+    <h2 style="letter-spacing:2px;">CONNECTION TERMINAL</h2>
     
     <video id="remoteVideo" autoplay playsinline webkit-playsinline muted 
-           style="width:90%; aspect-ratio:16/9; background:#222; border:2px solid cyan; border-radius:8px;">
+           style="width:100%; max-width:400px; aspect-ratio:16/9; background:#111; border:1px solid #333; margin-bottom:20px;">
     </video>
 
-    <div style="margin-top:20px;">
-        <button id="syncBtn" onclick="syncCamera()" 
-                style="padding:15px 30px; background:cyan; border:none; font-weight:bold; border-radius:5px;">
-            SYNC SENSES
-        </button>
+    <div id="status-box" style="font-size:10px; color:#666; margin-bottom:20px; text-transform:uppercase;">
+        Status: <span id="status" style="color:#fff;">Idle</span><br>
+        ICE: <span id="ice-status" style="color:#fff;">None</span>
     </div>
 
-    <p id="status" style="font-size:12px; color:gray;">Ready. Click Sync.</p>
+    <button onclick="syncSenses()" 
+            style="width:100%; max-width:400px; padding:20px; background:transparent; border:1px solid #00E5FF; color:#00E5FF; font-weight:bold; cursor:pointer;">
+        ESTABLISH SYNC
+    </button>
 
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
@@ -34,50 +35,60 @@
         const db = firebase.database();
         let pc;
 
-        async function syncCamera() {
+        // Expanded ICE Servers to bypass mobile firewalls
+        const config = {
+            iceServers: [
+                { urls: "stun:stun.l.google.com:19302" },
+                { urls: "stun:stun1.l.google.com:19302" },
+                { urls: "stun:stun2.l.google.com:19302" }
+            ]
+        };
+
+        async function syncSenses() {
             const video = document.getElementById('remoteVideo');
             const status = document.getElementById('status');
-            status.innerText = "Attempting Handshake...";
+            const iceStatus = document.getElementById('ice-status');
+
+            status.innerText = "Initializing PC...";
             
-            // 1. Unmute/Play trick for mobile
-            video.play().catch(() => console.log("Waiting for stream..."));
-
             if(pc) pc.close();
-            pc = new RTCPeerConnection({ 
-                iceServers: [{ urls: "stun:stun.l.google.com:19302" }] 
-            });
+            pc = new RTCPeerConnection(config);
 
-            // 2. Track Handling
+            // Handle incoming stream
             pc.ontrack = e => {
-                status.innerText = "STREAM RECEIVED!";
+                status.innerText = "STREAM RECEIVED";
                 video.srcObject = e.streams[0];
-                video.muted = false; // Try to unmute once stream arrives
                 video.play().catch(() => {
-                    video.muted = true; // Stay muted if browser blocks audio
+                    video.muted = true;
                     video.play();
                 });
             };
 
-            // 3. Persistent Listener for Offer (Fixed for Mobile Race Condition)
+            // ICE State Monitoring
+            pc.oniceconnectionstatechange = () => {
+                iceStatus.innerText = pc.iceConnectionState;
+                if(pc.iceConnectionState === "connected") status.innerText = "SYNC ACTIVE";
+                if(pc.iceConnectionState === "failed") status.innerText = "RETRYING...";
+            };
+
+            // Listen for Guide Offer
             db.ref("calls/active/offer").on("value", async snap => {
                 const offer = snap.val();
-                if (!offer) {
-                    status.innerText = "Waiting for Guide to start...";
-                    return;
-                }
+                if (!offer) return;
                 
-                try {
-                    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-                    await db.ref("calls/active/answer").set({ type: answer.type, sdp: answer.sdp });
-                    status.innerText = "Answer Sent. Awaiting ICE...";
-                } catch (err) {
-                    console.error("Signal Error:", err);
-                }
+                status.innerText = "Offer Detected...";
+                await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                
+                await db.ref("calls/active/answer").set({ 
+                    type: answer.type, 
+                    sdp: answer.sdp 
+                });
+                status.innerText = "Answer Transmitted...";
             });
 
-            // 4. ICE Candidate Listener
+            // ICE Candidate Exchange
             db.ref("calls/active/guideCandidates").on("child_added", snap => {
                 const candidate = snap.val();
                 if (candidate) {
@@ -85,9 +96,8 @@
                 }
             });
 
-            pc.oniceconnectionstatechange = () => {
-                status.innerText = "Connection: " + pc.iceConnectionState;
-            };
+            // Mobile video unlock
+            video.play().catch(() => {});
         }
     </script>
 </body>
