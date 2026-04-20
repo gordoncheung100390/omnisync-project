@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>OMNISYNC | MASTER CONSOLE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <style>
@@ -11,15 +12,25 @@
         #street-view { flex: 1; background: #000; }
         #map-2d { width: 30%; background: #222; border-left: 1px solid #444; }
         #resizer { width: 8px; background: #333; cursor: col-resize; z-index: 10; position: relative; }
-        #resizer:hover { background: #555; }
+        
+        /* Mobile Layout Adjustment */
+        @media (max-width: 768px) {
+            #container { flex-direction: column; }
+            #street-view { height: 60vh; width: 100%; }
+            #map-2d { height: 40vh; width: 100%; border-left: none; border-top: 1px solid #444; }
+            #resizer { display: none; }
+            #ui-layer { width: 90% !important; left: 5% !important; top: 10px !important; }
+            #local-video-container { width: 120px !important; bottom: 80px !important; right: 10px !important; }
+        }
+
         #ui-layer { position: absolute; top: 20px; left: 20px; z-index: 1000; width: 300px; }
         .ctrl-panel { background: rgba(0,0,0,0.9); padding: 15px; border: 1px solid #444; backdrop-filter: blur(10px); }
-        #pac-input { width: 100%; padding: 10px; background: #000; border: 1px solid #555; color: #fff; margin-bottom: 10px; box-sizing: border-box; }
+        #pac-input { width: 100%; padding: 10px; background: #000; border: 1px solid #555; color: #fff; margin-bottom: 10px; box-sizing: border-box; font-size: 16px; }
         .btn { width: 100%; padding: 10px; border: none; font-weight: 700; cursor: pointer; text-transform: uppercase; font-size: 10px; margin-top: 5px; }
         #broadcast-btn { background: #fff; color: #000; }
         #local-video-container { position: absolute; bottom: 20px; right: 20px; width: 220px; aspect-ratio: 16/9; border: 2px solid #fff; background: #000; z-index: 2000; }
         video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-        #chat-container { position: absolute; bottom: 20px; left: 20px; width: 300px; height: 200px; background: rgba(0,0,0,0.8); border: 1px solid #333; display: flex; flex-direction: column; z-index: 500; }
+        #chat-container { position: absolute; bottom: 20px; left: 20px; width: 280px; height: 180px; background: rgba(0,0,0,0.8); border: 1px solid #333; display: flex; flex-direction: column; z-index: 500; }
         #messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 11px; }
     </style>
 </head>
@@ -32,14 +43,11 @@
             <div id="tourist-list" style="margin-top:10px; font-size:11px; color:#00E5FF;">Waiting for Map...</div>
         </div>
     </div>
-
     <div id="chat-container">
         <div id="messages"></div>
-        <input type="text" id="chat-in" placeholder="Command..." style="background:transparent;border:none;border-top:1px solid #333;color:#fff;padding:8px;" onkeypress="if(event.key==='Enter') sendMsg()">
+        <input type="text" id="chat-in" placeholder="Command..." style="background:transparent;border:none;border-top:1px solid #333;color:#fff;padding:12px;font-size:14px;" onkeypress="if(event.key==='Enter') sendMsg()">
     </div>
-
     <div id="local-video-container"><video id="localVideo" autoplay playsinline muted></video></div>
-
     <div id="container">
         <div id="street-view"></div>
         <div id="resizer"></div>
@@ -47,7 +55,6 @@
     </div>
 
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs&libraries=places&callback=initApp" async defer></script>
-
     <script>
         const firebaseConfig = {
             apiKey: "AIzaSyBuGMqqCArrL6vKWGRZkgDtn3tvt9wSpoo",
@@ -61,21 +68,11 @@
         let panorama, map, touristMarkers = {};
 
         function initApp() {
-            console.log("Maps Initializing...");
             const startPos = { lat: 40.7562, lng: -73.9861 };
-            
-            // 2D Map setup
-            map = new google.maps.Map(document.getElementById("map-2d"), {
-                center: startPos, zoom: 15, streetViewControl: true
-            });
-
-            // Street View Setup
-            panorama = new google.maps.StreetViewPanorama(document.getElementById("street-view"), {
-                position: startPos, visible: true
-            });
+            map = new google.maps.Map(document.getElementById("map-2d"), { center: startPos, zoom: 15, streetViewControl: true });
+            panorama = new google.maps.StreetViewPanorama(document.getElementById("street-view"), { position: startPos, visible: true });
             map.setStreetView(panorama);
 
-            // Resizer Logic
             const resizer = document.getElementById("resizer");
             const map2d = document.getElementById("map-2d");
             let isResizing = false;
@@ -89,18 +86,13 @@
             });
             window.addEventListener("mouseup", () => isResizing = false);
 
-            // Autocomplete
             const input = document.getElementById("pac-input");
             const autocomplete = new google.maps.places.Autocomplete(input);
             autocomplete.addListener("place_changed", () => {
                 const p = autocomplete.getPlace();
-                if(p.geometry) { 
-                    panorama.setPosition(p.geometry.location); 
-                    map.setCenter(p.geometry.location); 
-                }
+                if(p.geometry) { panorama.setPosition(p.geometry.location); map.setCenter(p.geometry.location); }
             });
 
-            // Sync to Firebase
             panorama.addListener("position_changed", () => {
                 db.ref("tour/guide/position").set({ lat: panorama.getPosition().lat(), lng: panorama.getPosition().lng() });
             });
@@ -108,7 +100,6 @@
                 db.ref("tour/guide/pov").set(panorama.getPov());
             });
 
-            // Tourist Listener
             db.ref("tour/tourists").on("value", (snap) => {
                 const data = snap.val() || {};
                 const names = [];
@@ -116,17 +107,12 @@
                 for (let id in data) {
                     names.push(data[id].name);
                     const pos = { lat: data[id].lat, lng: data[id].lng };
-                    if (touristMarkers[id]) {
-                        touristMarkers[id].setPosition(pos);
-                    } else {
+                    if (touristMarkers[id]) { touristMarkers[id].setPosition(pos); } 
+                    else {
                         touristMarkers[id] = new google.maps.Marker({
                             position: pos, map: map,
                             label: { text: data[id].name, color: "#00E5FF", fontWeight: "700" },
-                            icon: { 
-                                path: google.maps.SymbolPath.CIRCLE, scale: 6, 
-                                fillColor: "#00E5FF", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2,
-                                labelOrigin: new google.maps.Point(0, -3)
-                            }
+                            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: "#00E5FF", fillOpacity: 1, strokeColor: "#FFF", strokeWeight: 2, labelOrigin: new google.maps.Point(0, -3) }
                         });
                     }
                 }
